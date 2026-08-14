@@ -37,8 +37,10 @@
       --max-width: 900px;
       --page-padding: 48px 20px;
       --card-padding: 42px 28px;
-      --content-font-size: 23px;
-      --title-font-size: 30px;
+      --content-font-size: 30px;
+      --title-font-size: 36px;
+      --meta-font-size: 27px;
+      --category-font-size: 27px;
       --h1-font-size: 34px;
     }
     ::selection { background: var(--accent-color); color: var(--button-text); }
@@ -212,7 +214,7 @@
     .meta {
       color: var(--meta-color);
       margin-bottom: 28px;
-      font-size: 16px;
+      font-size: var(--meta-font-size);
     }
     .content {
       margin: 0 auto;
@@ -221,8 +223,9 @@
       line-height: 2;
       text-align: center;
     }
-    /* 硬性要求：每行必须是完整句子，绝不允许换行断行（超宽时 JS 等比缩小字号） */
+    /* 每行保持完整分句；.wrap 允许八字以上分句自适应换行 */
     .verse-line { margin: 0; white-space: nowrap; }
+    .verse-line.wrap { white-space: normal; }
     .title, .meta { white-space: nowrap; }
     /* 竖排显示（设置里可选）：高度随最长句自适应，绝不截断 */
     body.vertical .content {
@@ -237,7 +240,7 @@
     body.vertical .verse-line { display: block; margin: 0; white-space: nowrap; }
     .category {
       margin-top: 30px;
-      font-size: 13px;
+      font-size: var(--category-font-size);
       color: var(--category-color);
     }
     /* 诗泉印章：红底圆角方框 + 米白字（稍小一号） */
@@ -605,73 +608,76 @@
       return parts.length > 1 ? parts : [text];
     }
 
-    // 排版规则：先缩字号（正文不小于体裁字号），能不换行尽量不换；
-    // 缩到下限仍超长的行，才按逗号/顿号换行，每行保证是完整分句
+    // 判断是否为五言/七言绝句（体裁命中，或各分句均为五/七字且不超过四句）
+    function isShortJueju(poem) {
+      const t = poem.y || "";
+      if (/五言绝句|七言绝句/.test(t)) return true;
+      const clauses = [];
+      for (const v of splitVerses(poem.c)) {
+        for (const c of splitClauseLines(v)) clauses.push(c);
+      }
+      if (clauses.length < 2 || clauses.length > 4) return false;
+      return clauses.every((c) => {
+        const n = c.replace(/[，、。！？；]/g, "").length;
+        return n === 5 || n === 7;
+      });
+    }
+
+    // 排版规则（不缩小字号）：
+    // 1. 五/七言绝句：一行两个小句（句号换行），宽度不够时改为逗号换行
+    // 2. 非五/七言：八字以上的小句允许自适应换行，八字以下保持整行
     function fitCardText() {
-      const titleEl = card.querySelector(".title");
-      const metaEl = card.querySelector(".meta");
       const contentEl = card.querySelector(".content");
-      if (!titleEl || !contentEl) return;
-      const catEl = card.querySelector(".category");
+      if (!contentEl || !currentPoem) return;
+      const verses = splitVerses(currentPoem.c);
+      const isV = document.body.classList.contains("vertical");
+      // 竖排：恢复整句成列
+      if (isV) {
+        contentEl.innerHTML = verses
+          .map((v) => '<div class="verse-line">' + escapeHtml(v) + "</div>")
+          .join("");
+        return;
+      }
       const cs = getComputedStyle(card);
-      // 预留卡片内装饰框（inset 14px）的安全边距，文字不出框
       const innerW =
         card.clientWidth -
         parseFloat(cs.paddingLeft) -
         parseFloat(cs.paddingRight) -
         28;
-      const isV = document.body.classList.contains("vertical");
-      const overflows = () => {
-        if (isV) return contentEl.scrollWidth > innerW + 2;
-        const els = [titleEl, ...contentEl.querySelectorAll(".verse-line")];
-        return els.some((el) => el.scrollWidth > innerW + 2);
-      };
-      const bodyOverflow = () =>
-        [...contentEl.querySelectorAll(".verse-line")].some(
-          (el) => el.scrollWidth > innerW + 2
-        );
 
-      const tryFit = () => {
-        // 重置回主题基准字号（默认中号与参考版一致：标题 30/作者 16/正文 23/体裁 13）
-        titleEl.style.fontSize = "";
-        if (metaEl) metaEl.style.fontSize = "";
-        contentEl.style.fontSize = "";
-        const baseT = parseFloat(getComputedStyle(titleEl).fontSize);
-        const baseM = metaEl ? parseFloat(getComputedStyle(metaEl).fontSize) : 16;
-        const baseC = parseFloat(getComputedStyle(contentEl).fontSize);
-        // 最低字号限制：正文不能小于体裁字号
-        const minC = catEl ? parseFloat(getComputedStyle(catEl).fontSize) : 13;
-        let scale = 1;
-        const applyScale = () => {
-          titleEl.style.fontSize = Math.round(baseT * scale) + "px";
-          if (metaEl) metaEl.style.fontSize = Math.round(baseM * scale) + "px";
-          contentEl.style.fontSize = Math.max(minC, Math.round(baseC * scale)) + "px";
-        };
-        applyScale();
-        while (overflows() && scale > 0.3) {
-          scale -= 0.06;
-          applyScale();
-          // 正文已到最低字号且仍有超长行：停止缩小，交给分句换行
-          if (!isV && baseC * scale <= minC && bodyOverflow()) break;
-        }
-        return !overflows();
-      };
+      const clauses = [];
+      for (const v of verses) {
+        for (const c of splitClauseLines(v)) clauses.push(c);
+      }
 
-      if (tryFit()) return;
-      if (isV) return;
-      // 只把超长的行按逗号/顿号拆开，短行保持整句
       const html = [];
-      contentEl.querySelectorAll(".verse-line").forEach((el) => {
-        if (el.scrollWidth <= innerW + 2) {
-          html.push(el.outerHTML);
-        } else {
-          for (const p of splitClauseLines(el.textContent)) {
-            html.push('<div class="verse-line">' + escapeHtml(p) + "</div>");
+      if (isShortJueju(currentPoem)) {
+        // 探针元素继承正文字体，实测两小句同行是否放得下
+        const probe = document.createElement("span");
+        probe.style.cssText = "position:absolute;visibility:hidden;white-space:nowrap;";
+        contentEl.appendChild(probe);
+        for (let i = 0; i < clauses.length; i += 2) {
+          const a = clauses[i];
+          const b = clauses[i + 1];
+          if (b) {
+            probe.textContent = a + b;
+            if (probe.scrollWidth <= innerW + 2) {
+              html.push('<div class="verse-line">' + escapeHtml(a + b) + "</div>");
+              continue;
+            }
           }
+          html.push('<div class="verse-line">' + escapeHtml(a) + "</div>");
+          if (b) html.push('<div class="verse-line">' + escapeHtml(b) + "</div>");
         }
-      });
+        probe.remove();
+      } else {
+        for (const c of clauses) {
+          const n = c.replace(/[，、。！？；]/g, "").length;
+          const cls = n >= 8 ? "verse-line wrap" : "verse-line";
+          html.push('<div class="' + cls + '">' + escapeHtml(c) + "</div>");
+        }
+      }
       contentEl.innerHTML = html.join("");
-      tryFit();
     }
 
     let fitTimer = null;
@@ -1415,9 +1421,10 @@
         }
       },
       size: {
-        small: { vars: { "--content-font-size": "19px", "--title-font-size": "26px" } },
-        medium: { vars: { "--content-font-size": "23px", "--title-font-size": "30px" } },
-        large: { vars: { "--content-font-size": "27px", "--title-font-size": "34px" } }
+        // 中号：标题 36/作者 27/正文 30/体裁 27；小/大各减/加 20%
+        small: { vars: { "--title-font-size": "29px", "--meta-font-size": "22px", "--content-font-size": "24px", "--category-font-size": "22px" } },
+        medium: { vars: { "--title-font-size": "36px", "--meta-font-size": "27px", "--content-font-size": "30px", "--category-font-size": "27px" } },
+        large: { vars: { "--title-font-size": "43px", "--meta-font-size": "32px", "--content-font-size": "36px", "--category-font-size": "32px" } }
       }
     };
 

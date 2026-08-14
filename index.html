@@ -4,7 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>诗泉</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='5' fill='%23a3382f'/%3E%3Ctext x='16' y='23' font-size='19' text-anchor='middle' fill='%23f7efe3' font-family='serif' font-weight='600'%3E%E8%AF%97%3C/text%3E%3C/svg%3E">
+  <link rel="icon" type="image/png" href="icon.png">
+  <link rel="apple-touch-icon" href="icon.png">
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <style>
     * { box-sizing: border-box; }
@@ -69,8 +70,10 @@
       text-align: center;
       font-size: var(--h1-font-size);
       margin: 0 0 8px;
-      font-weight: 600;
-      letter-spacing: 4px;
+      font-weight: 700;
+      letter-spacing: 6px;
+      color: var(--seal-color);
+      font-family: var(--font-content);
     }
     .subtitle {
       text-align: center;
@@ -223,29 +226,31 @@
       line-height: 2;
       white-space: pre-wrap;
     }
+    .verse-line { margin: 0; }
+    /* 竖排显示（设置里可选） */
+    body.vertical .content {
+      writing-mode: vertical-rl;
+      max-width: none;
+      height: 23em;
+      line-height: 2.1;
+      white-space: normal;
+    }
+    body.vertical .verse-line { display: block; margin: 0; }
     .category {
       margin-top: 30px;
       font-size: 13px;
       color: var(--category-color);
     }
-    /* 点缀：朱红印章（横平竖直） */
+    /* 点缀：纯文字 logo（红色宋体加粗） */
     .seal {
       margin: 30px auto 0;
-      width: 86px;
-      height: 40px;
-      background: var(--seal-color);
-      color: #f7efe3;
-      border-radius: 6px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 18px;
-      font-weight: 600;
-      letter-spacing: 6px;
-      text-indent: 6px;
+      font-family: var(--font-content);
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: 8px;
+      text-indent: 8px;
+      color: var(--seal-color);
       line-height: 1;
-      box-shadow: inset 0 0 0 1px rgba(247,239,227,.35);
-      opacity: .92;
       user-select: none;
     }
     .status {
@@ -388,7 +393,6 @@
       .splash-title { font-size: 42px; }
     }
   </style>
-  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js" defer></script>
 </head>
 <body>
   <div id="progress"></div>
@@ -478,6 +482,13 @@
         <button class="theme-opt" data-value="large">大</button>
       </div>
     </div>
+    <div class="theme-section">
+      <div class="theme-label">文字方向</div>
+      <div class="theme-options" data-group="direction">
+        <button class="theme-opt active" data-value="horizontal">横排</button>
+        <button class="theme-opt" data-value="vertical">竖排</button>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -537,17 +548,38 @@
         "</div>";
     }
 
+    // 按完整句拆分正文（。！？；各占一行，避免单字独占一行或重叠）
+    function splitVerses(text) {
+      const clean = (text || "").replace(/\s+/g, "");
+      if (!clean) return [];
+      const lines = [];
+      let buf = "";
+      for (const ch of clean) {
+        buf += ch;
+        if ("。！？；".includes(ch)) { lines.push(buf); buf = ""; }
+      }
+      if (buf) lines.push(buf);
+      return lines;
+    }
+
+    let currentPoem = null;
+
     function renderPoem(poem) {
+      currentPoem = poem;
       const title = poem.t ?? "";
       const author = poem.a ?? "";
       const dynasty = poem.d ?? "";
       const type = poem.y ?? "";
       const content = poem.c ?? "";
       const meta = [dynasty, author].filter(Boolean).join(" · ");
+      const verses = splitVerses(content);
+      const contentHtml = verses.length
+        ? verses.map((x) => '<div class="verse-line">' + escapeHtml(x) + "</div>").join("")
+        : "未找到正文";
       card.innerHTML =
         '<div class="title">' + escapeHtml(title || "无题") + "</div>" +
         '<div class="meta">' + escapeHtml(meta) + "</div>" +
-        '<div class="content">' + escapeHtml(content || "未找到正文") + "</div>" +
+        '<div class="content">' + contentHtml + "</div>" +
         (type ? '<div class="category">体裁：' + escapeHtml(type) + "</div>" : "") +
         '<div class="seal">诗泉</div>' +
         '<div class="card-footer">诗泉 · 非营利古诗词共享项目</div>';
@@ -747,7 +779,7 @@
 
     button.addEventListener("click", loadRandomPoem);
 
-    // ====== 分享：生成诗词卡片图片并保存 ======
+    // ====== 分享：纯 Canvas 手绘诗词卡片（高分辨率、按句排版、间距自适应） ======
     let shareRatio = "1:1";
     document.querySelectorAll(".ratio-opt").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -758,9 +790,22 @@
       });
     });
 
+    // 超长句按逗号再拆（词的长句自适应）
+    function wrapVerse(ctx, line, maxWidth) {
+      if (ctx.measureText(line).width <= maxWidth) return [line];
+      const parts = [];
+      let buf = "";
+      for (const ch of line) {
+        buf += ch;
+        if ("，、".includes(ch)) { parts.push(buf); buf = ""; }
+      }
+      if (buf) parts.push(buf);
+      return parts.length > 1 ? parts : [line];
+    }
+
     const shareButton = $("shareButton");
     shareButton.addEventListener("click", async () => {
-      if (!card.querySelector(".title")) {
+      if (!currentPoem) {
         showStatus("请先随机抽取一首诗，再分享", true);
         return;
       }
@@ -768,46 +813,170 @@
       shareButton.textContent = "生成中……";
       try {
         if (document.fonts && document.fonts.ready) await document.fonts.ready;
-        if (typeof html2canvas === "undefined") throw new Error("图片库未加载，请稍后重试");
-        const bg = getComputedStyle(document.documentElement)
-          .getPropertyValue("--bg-color").trim() || "#f4f1e8";
+        const css = getComputedStyle(document.documentElement);
+        const v = (name, fb) => css.getPropertyValue(name).trim() || fb;
+        const bg = v("--bg-color", "#f4f1e8");
+        const textColor = v("--text-color", "#2f2a24");
+        const metaColor = v("--meta-color", "#766d63");
+        const accent = v("--accent-color", "#4f5f4a");
+        const catColor = v("--category-color", "#958a7e");
+        const sealColor = v("--seal-color", "#a3382f");
+        const FONT = '"Noto Serif SC", "Songti SC", "SimSun", serif';
+        const vertical = currentTheme.direction === "vertical";
 
-        // 1. 渲染卡片本体（保证宽度 ≥ 3000px）
-        const cardW = Math.max(card.clientWidth, 1);
-        const scale = Math.max(2, Math.ceil(3000 / cardW));
-        const cardCanvas = await html2canvas(card, {
-          scale,
-          backgroundColor: bg,
-          useCORS: true,
-          logging: false
-        });
+        const title = currentPoem.t || "无题";
+        const authorMeta = [currentPoem.d, currentPoem.a].filter(Boolean).join(" · ");
+        const verses = splitVerses(currentPoem.c);
 
-        // 2. 按选定比例合成目标画布（宽固定 3000px）
+        // 画布：宽固定 3000px、高按选定比例；文字到边框间距固定，卡片不缩放
         const [rw, rh] = shareRatio.split(":").map(Number);
-        const targetW = 3000;
-        const targetH = Math.round((targetW * rh) / rw);
-        const target = document.createElement("canvas");
-        target.width = targetW;
-        target.height = targetH;
-        const ctx = target.getContext("2d");
+        const W = 3000;
+        const H = Math.round((W * rh) / rw);
+        const M = Math.round(W * 0.115);
+        const canvas = document.createElement("canvas");
+        canvas.width = W;
+        canvas.height = H;
+        const ctx = canvas.getContext("2d");
         ctx.fillStyle = bg;
-        ctx.fillRect(0, 0, targetW, targetH);
+        ctx.fillRect(0, 0, W, H);
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
 
-        // 卡片等比缩放居中（占画布 82%，留白更精致）
-        const maxW = targetW * 0.82;
-        const maxH = targetH * 0.82;
-        const ratio = Math.min(maxW / cardCanvas.width, maxH / cardCanvas.height);
-        const drawW = cardCanvas.width * ratio;
-        const drawH = cardCanvas.height * ratio;
-        ctx.drawImage(
-          cardCanvas,
-          (targetW - drawW) / 2,
-          (targetH - drawH) / 2,
-          drawW,
-          drawH
-        );
+        // 内框装饰线
+        ctx.strokeStyle = accent;
+        ctx.globalAlpha = 0.25;
+        ctx.lineWidth = 3;
+        ctx.strokeRect(M * 0.45, M * 0.45, W - M * 0.9, H - M * 0.9);
+        ctx.globalAlpha = 1;
 
-        const dataUrl = target.toDataURL("image/png");
+        // 水印「詩」
+        ctx.save();
+        ctx.globalAlpha = 0.045;
+        ctx.fillStyle = textColor;
+        ctx.font = "600 " + Math.round(W * 0.38) + "px " + FONT;
+        ctx.fillText("詩", W * 0.8, H * 0.87);
+        ctx.restore();
+
+        const footerText = "诗泉 · 非营利古诗词共享项目";
+
+        if (!vertical) {
+          // ---------- 横排：每个完整句一行，字号自适应不重叠 ----------
+          const availW = W - M * 2 - 100;
+          const availH = H - M * 2;
+          const measureLines = (size) => {
+            ctx.font = size + "px " + FONT;
+            const lines = [];
+            let max = 0;
+            for (const verse of verses) {
+              for (const p of wrapVerse(ctx, verse, availW)) {
+                lines.push(p);
+                max = Math.max(max, ctx.measureText(p).width);
+              }
+            }
+            return { lines, max };
+          };
+          const layoutFor = (size) => {
+            const mm = measureLines(size);
+            return {
+              lines: mm.lines,
+              max: mm.max,
+              fontSize: size,
+              lineH: Math.round(size * 1.95),
+              titleFont: Math.round(size * 1.5),
+              metaFont: Math.round(size * 0.6),
+              catFont: Math.round(size * 0.52),
+              sealFont: Math.round(size * 1.05)
+            };
+          };
+          const blockHeight = (L) =>
+            L.titleFont + 80 + L.metaFont + 70 + L.lines.length * L.lineH +
+            90 + L.sealFont + 90 + L.catFont;
+
+          let L = layoutFor(Math.round(W * 0.034));
+          if (L.max > availW) L = layoutFor(Math.floor(L.fontSize * availW / L.max));
+          if (blockHeight(L) > availH) {
+            L = layoutFor(Math.max(40, Math.floor(L.fontSize * availH / blockHeight(L))));
+          }
+
+          let y = M + Math.max(0, (availH - blockHeight(L)) / 2);
+          ctx.fillStyle = textColor;
+          ctx.font = "600 " + L.titleFont + "px " + FONT;
+          ctx.fillText(title, W / 2, y + L.titleFont / 2);
+          y += L.titleFont + 80;
+          ctx.fillStyle = metaColor;
+          ctx.font = L.metaFont + "px " + FONT;
+          ctx.fillText(authorMeta, W / 2, y + L.metaFont / 2);
+          y += L.metaFont + 70;
+          ctx.fillStyle = textColor;
+          ctx.font = L.fontSize + "px " + FONT;
+          for (const line of L.lines) {
+            ctx.fillText(line, W / 2, y + L.lineH / 2);
+            y += L.lineH;
+          }
+          y += 90;
+          // 纯文字 logo：诗泉（红色宋体加粗）
+          ctx.fillStyle = sealColor;
+          ctx.font = "700 " + L.sealFont + "px " + FONT;
+          const sp = L.sealFont * 1.2;
+          ctx.fillText("诗", W / 2 - sp / 2, y + L.sealFont / 2);
+          ctx.fillText("泉", W / 2 + sp / 2, y + L.sealFont / 2);
+          y += L.sealFont + 90;
+          ctx.fillStyle = catColor;
+          ctx.font = L.catFont + "px " + FONT;
+          ctx.fillText(footerText, W / 2, y + L.catFont / 2);
+        } else {
+          // ---------- 竖排：右侧标题列 → 诗句列 → 左侧作者列，印章在作者列下方 ----------
+          const cols = verses.length + 2;
+          const maxChars = Math.max(
+            title.length, authorMeta.length,
+            ...verses.map((x) => x.length), 1
+          );
+          const footerH = Math.round(W * 0.05);
+          const availH = H - M * 2 - footerH;
+          const availW = W - M * 2;
+          let charSize = Math.min(
+            Math.floor(availH / ((maxChars + 1) * 1.5)),
+            Math.floor(availW / (cols * 1.8)),
+            Math.round(W * 0.04)
+          );
+          charSize = Math.max(charSize, 36);
+          const colGap = Math.round(charSize * 1.8);
+          const totalW = cols * colGap;
+          const startX = W / 2 + totalW / 2 - colGap / 2;
+          const colH = maxChars * charSize * 1.5;
+          const startY = M + (availH - colH) / 2 + charSize * 0.75;
+
+          const drawVCol = (cx, text, size, weight, color) => {
+            ctx.font = weight + " " + size + "px " + FONT;
+            ctx.fillStyle = color;
+            let yy = startY;
+            for (const ch of text) {
+              ctx.fillText(ch, cx, yy);
+              yy += size * 1.5;
+            }
+            return yy;
+          };
+
+          let x = startX;
+          drawVCol(x, title, Math.round(charSize * 1.1), "600", textColor);
+          x -= Math.round(colGap * 1.15);
+          for (const verse of verses) {
+            drawVCol(x, verse, charSize, "400", textColor);
+            x -= colGap;
+          }
+          const yEnd = drawVCol(x, authorMeta, Math.round(charSize * 0.6), "400", metaColor);
+          // 纯文字 logo（竖排）：诗泉红色宋体加粗，竖排叠放
+          ctx.fillStyle = sealColor;
+          const vSealFont = Math.round(charSize * 0.8);
+          ctx.font = "700 " + vSealFont + "px " + FONT;
+          ctx.fillText("诗", x, yEnd + charSize * 0.55);
+          ctx.fillText("泉", x, yEnd + charSize * 0.55 + vSealFont * 1.4);
+          ctx.fillStyle = catColor;
+          ctx.font = Math.round(W * 0.017) + "px " + FONT;
+          ctx.fillText(footerText, W / 2, H - M * 0.5);
+        }
+
+        const dataUrl = canvas.toDataURL("image/png");
         const a = document.createElement("a");
         a.href = dataUrl;
         a.download = "诗泉_" + shareRatio.replace(":", "x") + "_" + Date.now() + ".png";
@@ -1084,7 +1253,7 @@
       }
     };
 
-    let currentTheme = { color: "warm", layout: "centered", size: "medium" };
+    let currentTheme = { color: "warm", layout: "centered", size: "medium", direction: "horizontal" };
 
     function applyTheme() {
       const root = document.documentElement;
@@ -1096,6 +1265,8 @@
           }
         }
       }
+      // 文字方向（竖排）
+      document.body.classList.toggle("vertical", currentTheme.direction === "vertical");
       // 同步面板选中状态
       document.querySelectorAll(".theme-options").forEach((container) => {
         const group = container.dataset.group;
@@ -1118,6 +1289,7 @@
           if (p.color && THEMES.color[p.color]) currentTheme.color = p.color;
           if (p.layout && THEMES.layout[p.layout]) currentTheme.layout = p.layout;
           if (p.size && THEMES.size[p.size]) currentTheme.size = p.size;
+          if (p.direction === "vertical" || p.direction === "horizontal") currentTheme.direction = p.direction;
         }
       } catch (e) {}
     }

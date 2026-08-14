@@ -77,6 +77,32 @@
       margin-top: 10px;
       line-height: 1.6;
     }
+    /* 后台预加载进度指示器 */
+    .preload-wrap {
+      margin-top: 10px;
+      transition: opacity 0.6s ease;
+    }
+    .preload-bar {
+      height: 4px;
+      background: #e0d9cc;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .preload-bar-fill {
+      height: 100%;
+      background: #4f5f4a;
+      border-radius: 2px;
+      transition: width 0.3s ease;
+      width: 0%;
+    }
+    .preload-text {
+      font-size: 12px;
+      color: #8a8076;
+      margin-top: 4px;
+    }
+    .preload-text.done {
+      color: #4f5f4a;
+    }
     .card {
       padding: 42px 28px;
       min-height: 360px;
@@ -144,7 +170,11 @@
       </div>
       <button id="randomButton" type="button">随机显示一首诗</button>
       <div class="tip">
-        共收录 37 万余首古诗词，可按作者/朝代/体裁筛选。数据完全在浏览器中加载，无需服务器。
+        共收录 37 万余首古诗词，首次打开后自动后台加载，加载完成后随机抽取秒出。
+      </div>
+      <div class="preload-wrap" id="preloadWrap">
+        <div class="preload-bar"><div class="preload-bar-fill" id="preloadFill"></div></div>
+        <div class="preload-text" id="preloadText">等待后台加载…</div>
       </div>
     </section>
 
@@ -317,13 +347,104 @@
       }
     }
 
+    // ====== 后台渐进式预加载 ======
+    // 预加载是否已启动（避免重复启动）
+    let preloadStarted = false;
+
+    // 统计当前已缓存的分块数
+    function countCachedChunks() {
+      if (!INDEX) return 0;
+      let n = 0;
+      for (const c of INDEX.chunks) if (chunkCache.has(c.file)) n++;
+      return n;
+    }
+
+    // 更新预加载进度（加载中）
+    function updateProgress() {
+      const total = INDEX ? INDEX.chunks.length : 0;
+      const cached = countCachedChunks();
+      const fill = $("preloadFill");
+      const text = $("preloadText");
+      if (fill && text && total) {
+        fill.style.width = Math.round((cached / total) * 100) + "%";
+        text.textContent = "后台预加载中... " + cached + " / " + total;
+        text.classList.remove("done");
+      }
+    }
+
+    // 预加载完成
+    function updateProgressDone() {
+      const fill = $("preloadFill");
+      const text = $("preloadText");
+      if (fill) fill.style.width = "100%";
+      if (text) {
+        text.textContent = "全部诗词已就绪，随机抽取秒出 ✓";
+        text.classList.add("done");
+      }
+      // 几秒后淡出，不干扰主界面
+      setTimeout(() => {
+        const wrap = $("preloadWrap");
+        if (wrap) wrap.style.opacity = "0";
+      }, 4000);
+    }
+
+    // 启动后台预加载：3 个并发，逐个缓存
+    function startPreloading() {
+      if (preloadStarted || !INDEX) return;
+      preloadStarted = true;
+
+      // 还未缓存的分块
+      const pending = INDEX.chunks.filter((c) => !chunkCache.has(c.file));
+      if (!pending.length) {
+        updateProgressDone();
+        return;
+      }
+
+      const total = pending.length;
+      let active = 0;   // 当前在途请求数
+      let idx = 0;     // 下一个待派发的分块下标
+
+      function fetchNext() {
+        // 全部派发完毕
+        if (idx >= total) {
+          if (active === 0) updateProgressDone();
+          return;
+        }
+        // 并发已满，等待回调
+        if (active >= 3) return;
+
+        const chunk = pending[idx++];
+        active++;
+        updateProgress();
+
+        // 复用 loadChunk（带缓存），出错不影响整体
+        loadChunk(chunk.file)
+          .then(() => {
+            updateProgress();
+          })
+          .catch(() => {
+            // 单个分块失败不中断后续
+          })
+          .finally(() => {
+            active--;
+            fetchNext();
+          });
+
+        // 尽量填满并发槽位
+        fetchNext();
+      }
+
+      fetchNext();
+    }
+
     button.addEventListener("click", loadRandomPoem);
 
-    // 页面加载：先加载索引，再自动随机显示一首诗
+    // 页面加载：先加载索引，再自动随机显示一首诗，随后后台预加载
     (async () => {
       await loadIndex();
       if (INDEX) {
-        await loadRandomPoem();
+        await loadRandomPoem();   // 显示首诗（同时缓存首诗所在分块）
+        startPreloading();        // 首诗显示后，启动后台预加载剩余分块
       }
     })();
   </script>

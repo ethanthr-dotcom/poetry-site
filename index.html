@@ -140,9 +140,9 @@
       color: var(--text-color); cursor: pointer; font-family: inherit; transition: all .2s;
     }
     .ratio-opt.active { background: var(--accent-color); color: var(--button-text); border-color: var(--accent-color); }
-    /* 字体加载完成前隐藏正文，避免跳动 */
-    .title, .content { transition: opacity .4s ease; }
-    .title.pending, .content.pending { opacity: 0; }
+    /* 字体加载完成前隐藏卡片内容，加载完同时淡入，避免跳动 */
+    .title, .meta, .content, .category { transition: opacity .4s ease; }
+    .title.pending, .meta.pending, .content.pending, .category.pending { opacity: 0; }
     /* ====== 顶部加载进度条 ====== */
     #progress {
       position: fixed; top: 0; left: 0; height: 3px; width: 0;
@@ -336,7 +336,7 @@
     }
     /* ====== 主题切换面板 ====== */
     .theme-toggle {
-      position: fixed;
+      position: absolute;
       top: 18px;
       right: 18px;
       width: 26px;
@@ -356,10 +356,10 @@
     .theme-toggle svg { width: 26px; height: 26px; display: block; }
     .theme-toggle:hover { transform: rotate(30deg); opacity: 1; }
     .theme-toggle:active { transform: rotate(60deg) scale(.92); }
-    /* 分享控制区（卡片下方） */
+    /* 分享控制区（诗词卡片上方） */
     .share-bar { margin-top: 28px; }
     .theme-panel {
-      position: fixed;
+      position: absolute;
       top: 66px;
       right: 16px;
       width: 240px;
@@ -453,10 +453,6 @@
       </div>
     </section>
 
-    <section class="card" id="card">
-      <div class="status">正在加载诗词库……</div>
-    </section>
-
     <div class="share-bar">
       <div class="ratio-row">
         <span class="ratio-label">卡片比例</span>
@@ -466,6 +462,10 @@
       </div>
       <button id="shareButton" type="button" class="secondary">分享诗词卡片</button>
     </div>
+
+    <section class="card" id="card">
+      <div class="status">正在加载诗词库……</div>
+    </section>
 
     <footer class="copyright">版权所有 © Ethan 2026</footer>
   </main>
@@ -634,17 +634,25 @@
         titleEl.style.fontSize = "";
         if (metaEl) metaEl.style.fontSize = "";
         contentEl.style.fontSize = "";
-        const baseT = parseFloat(getComputedStyle(titleEl).fontSize);
-        const baseM = metaEl ? parseFloat(getComputedStyle(metaEl).fontSize) : 16;
-        const baseC = parseFloat(getComputedStyle(contentEl).fontSize);
+        // 标题与诗泉印章同大，其余元素按同比例缩放
+        const SEAL_TITLE_SIZE = 18;
+        const rawT = parseFloat(getComputedStyle(titleEl).fontSize);
+        const k = SEAL_TITLE_SIZE / rawT;
+        const baseT = SEAL_TITLE_SIZE;
+        const baseM = (metaEl ? parseFloat(getComputedStyle(metaEl).fontSize) : 16) * k;
+        const baseC = parseFloat(getComputedStyle(contentEl).fontSize) * k;
         // 最低字号限制：正文不能小于体裁字号
         const minC = catEl ? parseFloat(getComputedStyle(catEl).fontSize) : 13;
         let scale = 1;
-        while (overflows() && scale > 0.3) {
-          scale -= 0.06;
+        const applyScale = () => {
           titleEl.style.fontSize = Math.round(baseT * scale) + "px";
           if (metaEl) metaEl.style.fontSize = Math.round(baseM * scale) + "px";
           contentEl.style.fontSize = Math.max(minC, Math.round(baseC * scale)) + "px";
+        };
+        applyScale();
+        while (overflows() && scale > 0.3) {
+          scale -= 0.06;
+          applyScale();
           // 正文已到最低字号且仍有超长行：停止缩小，交给分句换行
           if (!isV && baseC * scale <= minC && bodyOverflow()) break;
         }
@@ -694,8 +702,8 @@
         '<div class="seal">诗泉</div>' +
         '<div class="card-footer">诗泉 · 非营利古诗词共享项目</div>';
 
-      // 字体加载完成前隐藏正文，加载完再淡入，避免字符跳动
-      const pendingEls = card.querySelectorAll(".title, .content");
+      // 字体加载完成前隐藏全部卡片内容，加载完同时淡入，避免跳动
+      const pendingEls = card.querySelectorAll(".title, .meta, .content, .category");
       pendingEls.forEach((el) => el.classList.add("pending"));
       const loadText = (poem.t || "") + (poem.c || "");
       const fontReady =

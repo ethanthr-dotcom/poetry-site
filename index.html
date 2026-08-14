@@ -156,6 +156,7 @@
     /* ====== 卡片比例选择（居中） ====== */
     .ratio-row { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 12px; }
     .ratio-label { font-size: 13px; color: var(--label-color); }
+    .ratio-opt:disabled { opacity: .45; cursor: not-allowed; }
     .ratio-opt {
       width: auto; padding: 5px 12px; font-size: 13px; border-radius: 8px;
       border: 1px solid var(--input-border); background: var(--input-bg);
@@ -499,6 +500,7 @@
         <button class="ratio-opt active" data-ratio="1:1" type="button">1:1</button>
         <button class="ratio-opt" data-ratio="3:4" type="button">3:4</button>
         <button class="ratio-opt" data-ratio="9:16" type="button">9:16</button>
+        <button class="ratio-opt" data-ratio="auto" type="button">自适应</button>
       </div>
       <div class="tip">
         共收录 37 万余首古诗词 · 非营利项目 · 按需加载即时抽取
@@ -962,12 +964,23 @@
     let shareRatio = "1:1";
     document.querySelectorAll(".ratio-opt").forEach((btn) => {
       btn.addEventListener("click", () => {
+        if (btn.disabled) return;
         shareRatio = btn.dataset.ratio;
         document.querySelectorAll(".ratio-opt").forEach((b) =>
           b.classList.toggle("active", b === btn)
         );
       });
     });
+    // 竖排显示时强制使用自适应比例（按浏览器卡片实际宽高比）
+    function syncRatioOptions() {
+      const forceAuto = currentTheme.direction === "vertical";
+      if (forceAuto) shareRatio = "auto";
+      document.querySelectorAll(".ratio-opt").forEach((b) => {
+        const isAuto = b.dataset.ratio === "auto";
+        b.disabled = forceAuto && !isAuto;
+        b.classList.toggle("active", forceAuto ? isAuto : b.dataset.ratio === shareRatio);
+      });
+    }
 
     // 圆角矩形路径（印章方框用）
     function roundRectPath(c, x, y, w, h, r) {
@@ -1005,10 +1018,17 @@
         const authorMeta = [currentPoem.d, currentPoem.a].filter(Boolean).join(" · ");
         const verses = splitVerses(currentPoem.c);
 
-        // 画布：宽固定 3000px、高按选定比例；文字到边框间距固定，卡片不缩放
-        const [rw, rh] = shareRatio.split(":").map(Number);
+        // 画布：宽固定 3000px；高按比例（自适应 = 浏览器中卡片的实际显示比例）；文字到边框间距固定，卡片不缩放
         const W = 3000;
-        const H = Math.round((W * rh) / rw);
+        let H;
+        if (shareRatio === "auto") {
+          const cw = card.clientWidth || 1;
+          const ch = card.clientHeight || cw;
+          H = Math.round((W * ch) / cw);
+        } else {
+          const [rw, rh] = shareRatio.split(":").map(Number);
+          H = Math.round((W * rh) / rw);
+        }
         const M = Math.round(W * 0.115);
         const canvas = document.createElement("canvas");
         canvas.width = W;
@@ -1082,14 +1102,15 @@
         
         const footerText = "诗泉 · 非营利古诗词共享项目";
         
-        // 阴刻 logo（卡片印章位）；加载失败时退化为红色圆角方框
+        // 印章位 logo：横排用阴刻横版、竖排用竖版；加载失败时退化为红色圆角方框
         const logoImg = await new Promise((resolve) => {
           const img = new Image();
           img.onload = () => resolve(img);
           img.onerror = () => resolve(null);
-          img.src = "logo-yin.svg";
+          img.src = vertical ? "logo-vertical.svg" : "logo-yin.svg";
         });
-        const LOGO_RATIO = 222 / 126;
+        const LOGO_RATIO = 222 / 126; // 横版 logo 宽高比
+        const V_LOGO_RATIO = 126 / 222; // 竖版 logo 宽高比
 
         if (!vertical) {
           // ---------- 横排：换行必须在标点处——优先整句（逗号分隔的两小句）一行，放不下才一小句一行；字号按设计基准，实在超宽才等比缩小 ----------
@@ -1151,8 +1172,19 @@
           y += L.metaFont + 70;
           ctx.fillStyle = textColor;
           ctx.font = L.fontSize + "px " + FONT;
+          // 与网页一致：以文字为基准中心对齐，行尾标点悬挂在外不参与居中
           for (const line of lines) {
-            ctx.fillText(line, W / 2, y + L.lineH / 2);
+            const last = line.charAt(line.length - 1);
+            if (HANG_PUNCT.includes(last)) {
+              const body = line.slice(0, -1);
+              const bw = ctx.measureText(body).width;
+              ctx.textAlign = "left";
+              ctx.fillText(body, W / 2 - bw / 2, y + L.lineH / 2);
+              ctx.fillText(last, W / 2 + bw / 2, y + L.lineH / 2);
+              ctx.textAlign = "center";
+            } else {
+              ctx.fillText(line, W / 2, y + L.lineH / 2);
+            }
             y += L.lineH;
           }
           y += 90;
@@ -1169,8 +1201,8 @@
           ctx.font = L.catFont + "px " + FONT;
           ctx.fillText(footerText, W / 2, y + L.catFont / 2);
         } else {
-          // ---------- 竖排：右标题列 → 诗句列 → 左作者列，印章在作者列下方；字距行距与横排一致，全部元素不出边框 ----------
-          const ADV = 1.8; // 字距/列距系数，与横排行距相同
+          // ---------- 竖排：右标题列 → 诗句列 → 左作者列，竖版 logo 在作者列下方；全部元素不出边框 ----------
+          const ADV = 1.35; // 字距/列距系数（适中，不过松散）
           const footerH = Math.round(W * 0.05);
           const availH = H - M * 2 - footerH;
           const availW = W - M * 2;
@@ -1185,15 +1217,16 @@
             Math.round(W * 0.04)
           );
           charSize = Math.max(charSize, 30);
-          // 阴刻 logo（横版）放在作者列下方，预留高度按字符单位折算
-          const vLogoW = Math.round(charSize * 2.6);
-          const vLogoH = Math.round(vLogoW / LOGO_RATIO);
+          // 竖版 logo 放在作者列下方，与内容留出一段距离
+          const vLogoW = Math.round(charSize * 1.6);
+          const vLogoH = Math.round(vLogoW / V_LOGO_RATIO);
+          const vLogoGap = Math.round(charSize * 0.9);
           const vBoxH = vLogoH;
           const colGap = Math.round(charSize * ADV);
           const totalW = colGap * (verses.length + 1.15);
-          // 垂直居中：首字顶部到印章底部的总高
+          // 垂直居中：首字顶部到 logo 底部的总高（含 logo 与内容的间距）
           const topPad = charSize * 0.55;
-          const totalH = topPad + (maxChars - 1) * colGap + charSize * 0.85 + vBoxH;
+          const totalH = topPad + (maxChars - 1) * colGap + charSize * 0.85 + vLogoGap + vBoxH;
           const startY = M + Math.max(0, (availH - totalH) / 2) + topPad;
 
           const drawVCol = (cx, text, size, weight, color) => {
@@ -1215,9 +1248,9 @@
             x -= colGap;
           }
           drawVCol(x, authorMeta, Math.round(charSize * 0.6), "400", metaColor);
-          // 诗泉阴刻 logo：横放在作者列下方，不超出边框
+          // 诗泉竖版 logo：竖放在作者列下方，与内容保持间距，不超出边框
           const lastAuthorY = startY + ((authorMeta.length || maxChars) - 1) * colGap;
-          const vBoxY = Math.min(lastAuthorY + charSize * 0.85, H - M - footerH - vLogoH);
+          const vBoxY = Math.min(lastAuthorY + charSize * 0.3 + vLogoGap, H - M - footerH - vLogoH);
           if (logoImg) {
             ctx.drawImage(logoImg, x - vLogoW / 2, vBoxY, vLogoW, vLogoH);
           } else {
@@ -1225,9 +1258,16 @@
             roundRectPath(ctx, x - vLogoW / 2, vBoxY, vLogoW, vLogoH, vLogoH * 0.15);
             ctx.fill();
           }
+          // 页脚：不超出内框——超宽自动缩字号，位置收到内框线以内
+          const fMaxW = W - M * 0.9 - 40;
+          let fSize = Math.round(20 * (W / 750));
           ctx.fillStyle = catColor;
-          ctx.font = Math.round(20 * (W / 750)) + "px " + FONT;
-          ctx.fillText(footerText, W / 2, H - M * 0.5);
+          for (;;) {
+            ctx.font = fSize + "px " + FONT;
+            if (ctx.measureText(footerText).width <= fMaxW || fSize <= 28) break;
+            fSize -= 4;
+          }
+          ctx.fillText(footerText, W / 2, H - M * 0.45 - fSize * 0.75);
         }
 
         const dataUrl = canvas.toDataURL("image/png");
@@ -1519,6 +1559,7 @@
       }
       // 文字方向（竖排）
       document.body.classList.toggle("vertical", currentTheme.direction === "vertical");
+      syncRatioOptions();
       // 同步面板选中状态
       document.querySelectorAll(".theme-options").forEach((container) => {
         const group = container.dataset.group;

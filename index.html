@@ -243,6 +243,8 @@
     /* 每行保持完整分句；.wrap 允许八字以上分句自适应换行 */
     .verse-line { margin: 0; white-space: nowrap; }
     .verse-line.wrap { white-space: normal; }
+        /* 行尾标点占零宽（悬挂标点）：居中只按文字计算，视觉对齐 */
+        .hang-punct { display: inline-block; width: 0; }
     .title, .meta { white-space: nowrap; }
     /* 竖排显示（设置里可选）：高度随最长句自适应，绝不截断 */
     body.vertical .content {
@@ -466,7 +468,7 @@
           <input id="type" placeholder="例如：五言绝句">
         </div>
       </div>
-      <button id="randomButton" type="button">随机显示一首诗</button>
+      <button id="randomButton" type="button">随机显示一首诗/词</button>
       <div class="ratio-row">
         <span class="ratio-label">卡片比例</span>
         <button class="ratio-opt active" data-ratio="1:1" type="button">1:1</button>
@@ -623,6 +625,19 @@
       return parts.length > 1 ? parts : [text];
     }
 
+    // 行尾标点做成零宽悬挂标点：居中按文字计算，视觉上各行对齐
+    const HANG_PUNCT = "，、。！？；：";
+    function verseHtml(text) {
+      const last = text.charAt(text.length - 1);
+      if (HANG_PUNCT.includes(last)) {
+        return (
+          escapeHtml(text.slice(0, -1)) +
+          '<span class="hang-punct">' + escapeHtml(last) + "</span>"
+        );
+      }
+      return escapeHtml(text);
+    }
+
     // 判断是否为五言/七言绝句（体裁命中，或各分句均为五/七字且不超过四句）
     function isShortJueju(poem) {
       const t = poem.y || "";
@@ -677,19 +692,19 @@
           if (b) {
             probe.textContent = a + b;
             if (probe.scrollWidth <= innerW + 2) {
-              html.push('<div class="verse-line">' + escapeHtml(a + b) + "</div>");
+              html.push('<div class="verse-line">' + verseHtml(a + b) + "</div>");
               continue;
             }
           }
-          html.push('<div class="verse-line">' + escapeHtml(a) + "</div>");
-          if (b) html.push('<div class="verse-line">' + escapeHtml(b) + "</div>");
+          html.push('<div class="verse-line">' + verseHtml(a) + "</div>");
+          if (b) html.push('<div class="verse-line">' + verseHtml(b) + "</div>");
         }
         probe.remove();
       } else {
         for (const c of clauses) {
           const n = c.replace(/[，、。！？；]/g, "").length;
           const cls = n >= 8 ? "verse-line wrap" : "verse-line";
-          html.push('<div class="' + cls + '">' + escapeHtml(c) + "</div>");
+          html.push('<div class="' + cls + '">' + verseHtml(c) + "</div>");
         }
       }
       contentEl.innerHTML = html.join("");
@@ -711,7 +726,7 @@
       const meta = [dynasty, author].filter(Boolean).join(" · ");
       const verses = splitVerses(content);
       const contentHtml = verses.length
-        ? verses.map((x) => '<div class="verse-line">' + escapeHtml(x) + "</div>").join("")
+        ? verses.map((x) => '<div class="verse-line">' + verseHtml(x) + "</div>").join("")
         : "未找到正文";
       card.innerHTML =
         '<div class="title">' + escapeHtml(title || "无题") + "</div>" +
@@ -849,7 +864,7 @@
         showStatus("读取失败：" + (err && err.message ? err.message : err), true);
       } finally {
         button.disabled = false;
-        button.textContent = "随机显示一首诗";
+        button.textContent = "随机显示一首诗/词";
         progressDone();
       }
     }
@@ -996,76 +1011,67 @@
         ctx.restore();
 
         const footerText = "诗泉 · 非营利古诗词共享项目";
+        const typeText = currentPoem.y ? "体裁：" + currentPoem.y : "";
+
+        // 阳刻 logo（卡片印章位）；加载失败时退化为红色圆角方框
+        const logoImg = await new Promise((resolve) => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.onerror = () => resolve(null);
+          img.src = "logo-yang.svg";
+        });
+        const LOGO_RATIO = 222 / 126;
 
         if (!vertical) {
-          // ---------- 横排：先缩字号（不低于落款字号），能不换行尽量不换；仍超长才按逗号/顿号分句换行 ----------
+          // ---------- 横排：换行必须在标点处——优先整句（逗号分隔的两小句）一行，放不下才一小句一行；字号按设计基准，实在超宽才等比缩小 ----------
           const availW = W - M * 2 - 100;
           const availH = H - M * 2;
-          const minSize = Math.round(W * 0.017); // 最低字号：不小于落款/体裁文字
-          const measureLines = (size, list) => {
+          const SC = W / 750; // 设计字号（标题36/作者23/正文26/体裁20）到画布的缩放
+          const measureList = (size, list) => {
             ctx.font = size + "px " + FONT;
-            let max = 0;
-            for (const line of list) {
-              max = Math.max(max, ctx.measureText(line).width);
-            }
-            return { lines: list, max };
+            return list.reduce((m, s) => Math.max(m, ctx.measureText(s).width), 0);
           };
-          const layoutFor = (size, list) => {
-            const mm = measureLines(size, list);
-            const sealFont = Math.round(size * 0.85);
+          const clauseLines = [];
+          for (const verse of verses) {
+            for (const p of splitClauseLines(verse)) clauseLines.push(p);
+          }
+          let scale = 1;
+          const layout = () => {
+            const fontSize = Math.round(26 * SC * scale);
+            const logoH = Math.round(fontSize * 1.45);
             return {
-              lines: mm.lines,
-              max: mm.max,
-              fontSize: size,
-              lineH: Math.round(size * 1.8),
-              titleFont: Math.round(size * 1.5),
-              metaFont: Math.round(size * 0.6),
-              catFont: Math.round(size * 0.52),
-              sealFont,
-              sealBoxH: Math.round(sealFont * 1.7)
+              fontSize,
+              titleFont: Math.round(36 * SC * scale),
+              metaFont: Math.round(23 * SC * scale),
+              catFont: Math.round(20 * SC * scale),
+              lineH: Math.round(fontSize * 1.8),
+              logoH,
+              logoW: Math.round(logoH * LOGO_RATIO)
             };
           };
-          const blockHeight = (L) =>
-            L.titleFont + 80 + L.metaFont + 70 + L.lines.length * L.lineH +
-            90 + L.sealBoxH + 90 + L.catFont;
-          const widestOf = (L) => {
+          const blockHeight = (L, list) =>
+            L.titleFont + 80 + L.metaFont + 70 + list.length * L.lineH +
+            90 + L.logoH + 90 + (typeText ? L.catFont + 40 : 0) + L.catFont;
+
+          let lines = verses;
+          let L = layout();
+          if (measureList(L.fontSize, verses) > availW) lines = clauseLines;
+          for (;;) {
+            L = layout();
             ctx.font = "600 " + L.titleFont + "px " + FONT;
             const tw = ctx.measureText(title).width;
             ctx.font = L.catFont + "px " + FONT;
             const fw = ctx.measureText(footerText).width;
-            ctx.font = "700 " + L.sealFont + "px " + FONT;
-            const sw =
-              ctx.measureText("诗泉").width + L.sealFont * 0.35 + L.sealFont * 1.24;
-            return Math.max(L.max, tw, fw, sw);
-          };
-
-          const fitLayout = (list) => {
-            let L = layoutFor(Math.round(W * 0.034), list);
-            const w0 = widestOf(L);
-            if (w0 > availW) {
-              L = layoutFor(Math.floor((L.fontSize * availW) / w0), list);
-            }
-            if (L.fontSize < minSize) L = layoutFor(minSize, list);
-            if (blockHeight(L) > availH) {
-              L = layoutFor(
-                Math.max(minSize, Math.floor((L.fontSize * availH) / blockHeight(L))),
-                list
-              );
-            }
-            return L;
-          };
-
-          let L = fitLayout(verses);
-          if (L.max > availW) {
-            // 最低字号仍放不下：按逗号/顿号分句换行，每行都是完整分句
-            const clauseLines = [];
-            for (const verse of verses) {
-              for (const p of splitClauseLines(verse)) clauseLines.push(p);
-            }
-            L = fitLayout(clauseLines);
+            const wMax = Math.max(measureList(L.fontSize, lines), tw, fw, L.logoW);
+            if (wMax <= availW || scale <= 0.35) break;
+            scale *= availW / wMax;
+          }
+          if (blockHeight(L, lines) > availH && scale > 0.35) {
+            scale *= availH / blockHeight(L, lines);
+            L = layout();
           }
 
-          let y = M + Math.max(0, (availH - blockHeight(L)) / 2);
+          let y = M + Math.max(0, (availH - blockHeight(L, lines)) / 2);
           ctx.fillStyle = textColor;
           ctx.font = "600 " + L.titleFont + "px " + FONT;
           ctx.fillText(title, W / 2, y + L.titleFont / 2);
@@ -1076,30 +1082,26 @@
           y += L.metaFont + 70;
           ctx.fillStyle = textColor;
           ctx.font = L.fontSize + "px " + FONT;
-          for (const line of L.lines) {
+          for (const line of lines) {
             ctx.fillText(line, W / 2, y + L.lineH / 2);
             y += L.lineH;
           }
           y += 90;
-          // 诗泉印章：红底圆角方框 + 米白字，离边框留足距离
-          ctx.font = "700 " + L.sealFont + "px " + FONT;
-          const gapSp = L.sealFont * 0.35;
-          const textW = ctx.measureText("诗泉").width + gapSp;
-          const padX = L.sealFont * 0.62;
-          const boxW = textW + padX * 2;
-          const bx = W / 2 - boxW / 2;
-          ctx.fillStyle = sealColor;
-          roundRectPath(ctx, bx, y, boxW, L.sealBoxH, L.sealFont * 0.28);
-          ctx.fill();
-          ctx.fillStyle = "#f7efe3";
-          ctx.textAlign = "left";
-          const tx = W / 2 - textW / 2;
-          ctx.fillText("诗", tx, y + L.sealBoxH / 2);
-          ctx.fillText("泉", tx + ctx.measureText("诗").width + gapSp, y + L.sealBoxH / 2);
-          ctx.textAlign = "center";
-          y += L.sealBoxH + 90;
+          // 诗泉阳刻 logo（印章位）
+          if (logoImg) {
+            ctx.drawImage(logoImg, W / 2 - L.logoW / 2, y, L.logoW, L.logoH);
+          } else {
+            ctx.fillStyle = sealColor;
+            roundRectPath(ctx, W / 2 - L.logoW / 2, y, L.logoW, L.logoH, L.logoH * 0.15);
+            ctx.fill();
+          }
+          y += L.logoH + 90;
           ctx.fillStyle = catColor;
           ctx.font = L.catFont + "px " + FONT;
+          if (typeText) {
+            ctx.fillText(typeText, W / 2, y + L.catFont / 2);
+            y += L.catFont + 40;
+          }
           ctx.fillText(footerText, W / 2, y + L.catFont / 2);
         } else {
           // ---------- 竖排：右标题列 → 诗句列 → 左作者列，印章在作者列下方；字距行距与横排一致，全部元素不出边框 ----------
@@ -1111,7 +1113,6 @@
             title.length, authorMeta.length,
             ...verses.map((x) => x.length), 1
           );
-          const vSealFont0 = 0.65; // 印章字号相对字元比例
           // 高：最长列字符跨度 + 印章方框预留；宽：标题列(1.15 间距)+诗句列+作者列+半字余量
           let charSize = Math.min(
             Math.floor(availH / (maxChars * ADV + 4.2)),
@@ -1119,12 +1120,12 @@
             Math.round(W * 0.04)
           );
           charSize = Math.max(charSize, 30);
+          // 阳刻 logo（横版）放在作者列下方，预留高度按字符单位折算
+          const vLogoW = Math.round(charSize * 2.6);
+          const vLogoH = Math.round(vLogoW / LOGO_RATIO);
+          const vBoxH = vLogoH;
           const colGap = Math.round(charSize * ADV);
           const totalW = colGap * (verses.length + 1.15);
-          const vSealFont = Math.round(charSize * vSealFont0);
-          const vPadX = vSealFont * 0.5;
-          const vPadY = vSealFont * 0.42;
-          const vBoxH = vSealFont * 2 + vSealFont * 0.5 + vPadY * 2;
           // 垂直居中：首字顶部到印章底部的总高
           const topPad = charSize * 0.55;
           const totalH = topPad + (maxChars - 1) * colGap + charSize * 0.85 + vBoxH;
@@ -1149,19 +1150,18 @@
             x -= colGap;
           }
           drawVCol(x, authorMeta, Math.round(charSize * 0.6), "400", metaColor);
-          // 诗泉印章（竖排）：红底圆角方框 + 米白字叠放，紧贴作者列末尾不超出边框
+          // 诗泉阳刻 logo：横放在作者列下方，不超出边框
           const lastAuthorY = startY + ((authorMeta.length || maxChars) - 1) * colGap;
-          ctx.font = "700 " + vSealFont + "px " + FONT;
-          const vBoxW = Math.max(ctx.measureText("诗").width, ctx.measureText("泉").width) + vPadX * 2;
-          const vBoxY = Math.min(lastAuthorY + charSize * 0.85, H - M - footerH - vBoxH);
-          ctx.fillStyle = sealColor;
-          roundRectPath(ctx, x - vBoxW / 2, vBoxY, vBoxW, vBoxH, vSealFont * 0.28);
-          ctx.fill();
-          ctx.fillStyle = "#f7efe3";
-          ctx.fillText("诗", x, vBoxY + vPadY + vSealFont / 2);
-          ctx.fillText("泉", x, vBoxY + vPadY + vSealFont * 1.5 + vSealFont / 2);
+          const vBoxY = Math.min(lastAuthorY + charSize * 0.85, H - M - footerH - vLogoH);
+          if (logoImg) {
+            ctx.drawImage(logoImg, x - vLogoW / 2, vBoxY, vLogoW, vLogoH);
+          } else {
+            ctx.fillStyle = sealColor;
+            roundRectPath(ctx, x - vLogoW / 2, vBoxY, vLogoW, vLogoH, vLogoH * 0.15);
+            ctx.fill();
+          }
           ctx.fillStyle = catColor;
-          ctx.font = Math.round(W * 0.017) + "px " + FONT;
+          ctx.font = Math.round(20 * (W / 750)) + "px " + FONT;
           ctx.fillText(footerText, W / 2, H - M * 0.5);
         }
 

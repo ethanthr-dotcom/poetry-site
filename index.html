@@ -219,38 +219,47 @@
       font-size: 16px;
     }
     .content {
-      max-width: 650px;
       margin: 0 auto;
       font-family: var(--font-content);
       font-size: var(--content-font-size);
       line-height: 2;
-      white-space: pre-wrap;
+      text-align: center;
     }
-    .verse-line { margin: 0; }
-    /* 竖排显示（设置里可选） */
+    /* 硬性要求：每行必须是完整句子，绝不允许换行断行（超宽时 JS 等比缩小字号） */
+    .verse-line { margin: 0; white-space: nowrap; }
+    .title, .meta { white-space: nowrap; }
+    /* 竖排显示（设置里可选）：高度随最长句自适应，绝不截断 */
     body.vertical .content {
       writing-mode: vertical-rl;
       max-width: none;
-      height: 23em;
+      width: fit-content;
+      height: auto;
+      margin: 0 auto;
       line-height: 2.1;
       white-space: normal;
     }
-    body.vertical .verse-line { display: block; margin: 0; }
+    body.vertical .verse-line { display: block; margin: 0; white-space: nowrap; }
     .category {
       margin-top: 30px;
       font-size: 13px;
       color: var(--category-color);
     }
-    /* 点缀：纯文字 logo（红色宋体加粗） */
+    /* 诗泉印章：红底圆角方框 + 米白字 */
     .seal {
-      margin: 30px auto 0;
+      width: fit-content;
+      margin: 32px auto 0;
+      padding: 12px 28px;
+      background: var(--seal-color);
+      color: #f7efe3;
+      border-radius: 10px;
       font-family: var(--font-content);
       font-size: 24px;
       font-weight: 700;
       letter-spacing: 8px;
       text-indent: 8px;
-      color: var(--seal-color);
       line-height: 1;
+      text-align: center;
+      box-shadow: inset 0 0 0 1px rgba(247, 239, 227, .3);
       user-select: none;
     }
     .status {
@@ -564,6 +573,43 @@
 
     let currentPoem = null;
 
+    // 硬性要求：绝不允许换行断行。超宽时等比缩小标题、作者、正文字号，全部强制居中
+    function fitCardText() {
+      const titleEl = card.querySelector(".title");
+      const metaEl = card.querySelector(".meta");
+      const contentEl = card.querySelector(".content");
+      if (!titleEl || !contentEl) return;
+      // 重置回主题基准字号
+      titleEl.style.fontSize = "";
+      if (metaEl) metaEl.style.fontSize = "";
+      contentEl.style.fontSize = "";
+      const baseT = parseFloat(getComputedStyle(titleEl).fontSize);
+      const baseM = metaEl ? parseFloat(getComputedStyle(metaEl).fontSize) : 16;
+      const baseC = parseFloat(getComputedStyle(contentEl).fontSize);
+      const cs = getComputedStyle(card);
+      const innerW =
+        card.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      const isV = document.body.classList.contains("vertical");
+      const overflows = () => {
+        if (isV) return contentEl.scrollWidth > innerW + 2;
+        const els = [titleEl, ...contentEl.querySelectorAll(".verse-line")];
+        return els.some((el) => el.scrollWidth > innerW + 2);
+      };
+      let scale = 1;
+      while (overflows() && scale > 0.3) {
+        scale -= 0.06;
+        titleEl.style.fontSize = Math.round(baseT * scale) + "px";
+        if (metaEl) metaEl.style.fontSize = Math.round(baseM * scale) + "px";
+        contentEl.style.fontSize = Math.round(baseC * scale) + "px";
+      }
+    }
+
+    let fitTimer = null;
+    window.addEventListener("resize", () => {
+      clearTimeout(fitTimer);
+      fitTimer = setTimeout(fitCardText, 120);
+    });
+
     function renderPoem(poem) {
       currentPoem = poem;
       const title = poem.t ?? "";
@@ -596,6 +642,7 @@
         .catch(() => {})
         .finally(() => {
           requestAnimationFrame(() => {
+            fitCardText();
             pendingEls.forEach((el) => el.classList.remove("pending"));
           });
         });
@@ -790,17 +837,15 @@
       });
     });
 
-    // 超长句按逗号再拆（词的长句自适应）
-    function wrapVerse(ctx, line, maxWidth) {
-      if (ctx.measureText(line).width <= maxWidth) return [line];
-      const parts = [];
-      let buf = "";
-      for (const ch of line) {
-        buf += ch;
-        if ("，、".includes(ch)) { parts.push(buf); buf = ""; }
-      }
-      if (buf) parts.push(buf);
-      return parts.length > 1 ? parts : [line];
+    // 圆角矩形路径（印章方框用）
+    function roundRectPath(c, x, y, w, h, r) {
+      c.beginPath();
+      c.moveTo(x + r, y);
+      c.arcTo(x + w, y, x + w, y + h, r);
+      c.arcTo(x + w, y + h, x, y + h, r);
+      c.arcTo(x, y + h, x, y, r);
+      c.arcTo(x, y, x + w, y, r);
+      c.closePath();
     }
 
     const shareButton = $("shareButton");
@@ -860,23 +905,20 @@
         const footerText = "诗泉 · 非营利古诗词共享项目";
 
         if (!vertical) {
-          // ---------- 横排：每个完整句一行，字号自适应不重叠 ----------
+          // ---------- 横排：硬性要求——每句一行绝不断行，超宽/超高只等比缩小字号 ----------
           const availW = W - M * 2 - 100;
           const availH = H - M * 2;
           const measureLines = (size) => {
             ctx.font = size + "px " + FONT;
-            const lines = [];
             let max = 0;
             for (const verse of verses) {
-              for (const p of wrapVerse(ctx, verse, availW)) {
-                lines.push(p);
-                max = Math.max(max, ctx.measureText(p).width);
-              }
+              max = Math.max(max, ctx.measureText(verse).width);
             }
-            return { lines, max };
+            return { lines: verses, max };
           };
           const layoutFor = (size) => {
             const mm = measureLines(size);
+            const sealFont = Math.round(size * 1.05);
             return {
               lines: mm.lines,
               max: mm.max,
@@ -885,15 +927,24 @@
               titleFont: Math.round(size * 1.5),
               metaFont: Math.round(size * 0.6),
               catFont: Math.round(size * 0.52),
-              sealFont: Math.round(size * 1.05)
+              sealFont,
+              sealBoxH: Math.round(sealFont * 1.7)
             };
           };
           const blockHeight = (L) =>
             L.titleFont + 80 + L.metaFont + 70 + L.lines.length * L.lineH +
-            90 + L.sealFont + 90 + L.catFont;
+            90 + L.sealBoxH + 90 + L.catFont;
+          const widestOf = (L) => {
+            ctx.font = "600 " + L.titleFont + "px " + FONT;
+            const tw = ctx.measureText(title).width;
+            ctx.font = L.catFont + "px " + FONT;
+            const fw = ctx.measureText(footerText).width;
+            return Math.max(L.max, tw, fw);
+          };
 
           let L = layoutFor(Math.round(W * 0.034));
-          if (L.max > availW) L = layoutFor(Math.floor(L.fontSize * availW / L.max));
+          let w0 = widestOf(L);
+          if (w0 > availW) L = layoutFor(Math.floor(L.fontSize * availW / w0));
           if (blockHeight(L) > availH) {
             L = layoutFor(Math.max(40, Math.floor(L.fontSize * availH / blockHeight(L))));
           }
@@ -914,13 +965,23 @@
             y += L.lineH;
           }
           y += 90;
-          // 纯文字 logo：诗泉（红色宋体加粗）
-          ctx.fillStyle = sealColor;
+          // 诗泉印章：红底圆角方框 + 米白字，离边框留足距离
           ctx.font = "700 " + L.sealFont + "px " + FONT;
-          const sp = L.sealFont * 1.2;
-          ctx.fillText("诗", W / 2 - sp / 2, y + L.sealFont / 2);
-          ctx.fillText("泉", W / 2 + sp / 2, y + L.sealFont / 2);
-          y += L.sealFont + 90;
+          const gapSp = L.sealFont * 0.35;
+          const textW = ctx.measureText("诗泉").width + gapSp;
+          const padX = L.sealFont * 0.62;
+          const boxW = textW + padX * 2;
+          const bx = W / 2 - boxW / 2;
+          ctx.fillStyle = sealColor;
+          roundRectPath(ctx, bx, y, boxW, L.sealBoxH, L.sealFont * 0.28);
+          ctx.fill();
+          ctx.fillStyle = "#f7efe3";
+          ctx.textAlign = "left";
+          const tx = W / 2 - textW / 2;
+          ctx.fillText("诗", tx, y + L.sealBoxH / 2);
+          ctx.fillText("泉", tx + ctx.measureText("诗").width + gapSp, y + L.sealBoxH / 2);
+          ctx.textAlign = "center";
+          y += L.sealBoxH + 90;
           ctx.fillStyle = catColor;
           ctx.font = L.catFont + "px " + FONT;
           ctx.fillText(footerText, W / 2, y + L.catFont / 2);
@@ -965,12 +1026,20 @@
             x -= colGap;
           }
           const yEnd = drawVCol(x, authorMeta, Math.round(charSize * 0.6), "400", metaColor);
-          // 纯文字 logo（竖排）：诗泉红色宋体加粗，竖排叠放
-          ctx.fillStyle = sealColor;
+          // 诗泉印章（竖排）：红底圆角方框 + 米白字叠放
           const vSealFont = Math.round(charSize * 0.8);
           ctx.font = "700 " + vSealFont + "px " + FONT;
-          ctx.fillText("诗", x, yEnd + charSize * 0.55);
-          ctx.fillText("泉", x, yEnd + charSize * 0.55 + vSealFont * 1.4);
+          const vPadX = vSealFont * 0.5;
+          const vPadY = vSealFont * 0.42;
+          const vBoxW = Math.max(ctx.measureText("诗").width, ctx.measureText("泉").width) + vPadX * 2;
+          const vBoxH = vSealFont * 2 + vSealFont * 0.5 + vPadY * 2;
+          const vBoxY = yEnd + charSize * 0.35;
+          ctx.fillStyle = sealColor;
+          roundRectPath(ctx, x - vBoxW / 2, vBoxY, vBoxW, vBoxH, vSealFont * 0.28);
+          ctx.fill();
+          ctx.fillStyle = "#f7efe3";
+          ctx.fillText("诗", x, vBoxY + vPadY + vSealFont / 2);
+          ctx.fillText("泉", x, vBoxY + vPadY + vSealFont * 1.5 + vSealFont / 2);
           ctx.fillStyle = catColor;
           ctx.font = Math.round(W * 0.017) + "px " + FONT;
           ctx.fillText(footerText, W / 2, H - M * 0.5);
@@ -1275,6 +1344,8 @@
           btn.classList.toggle("active", btn.dataset.value === value);
         });
       });
+      // 字号/方向变化后重新自适应
+      requestAnimationFrame(fitCardText);
     }
 
     function saveTheme() {

@@ -345,7 +345,7 @@
       border: 0;
       color: var(--text-color);
       cursor: pointer;
-      z-index: 100;
+      z-index: 1200;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -356,6 +356,8 @@
     .theme-toggle svg { width: 26px; height: 26px; display: block; }
     .theme-toggle:hover { transform: rotate(30deg); opacity: 1; }
     .theme-toggle:active { transform: rotate(60deg) scale(.92); }
+    /* 分享控制区（卡片下方） */
+    .share-bar { margin-top: 28px; }
     .theme-panel {
       position: fixed;
       top: 66px;
@@ -366,7 +368,7 @@
       border-radius: 14px;
       box-shadow: var(--card-shadow);
       padding: 16px;
-      z-index: 99;
+      z-index: 1199;
       opacity: 0;
       visibility: hidden;
       transform: translateY(-8px) scale(.96);
@@ -446,13 +448,6 @@
         </div>
       </div>
       <button id="randomButton" type="button">随机显示一首诗</button>
-      <div class="ratio-row">
-        <span class="ratio-label">卡片比例</span>
-        <button class="ratio-opt active" data-ratio="1:1" type="button">1:1</button>
-        <button class="ratio-opt" data-ratio="3:4" type="button">3:4</button>
-        <button class="ratio-opt" data-ratio="9:16" type="button">9:16</button>
-      </div>
-      <button id="shareButton" type="button" class="secondary">分享诗词卡片</button>
       <div class="tip">
         共收录 37 万余首古诗词 · 非营利项目 · 按需加载即时抽取
       </div>
@@ -461,6 +456,16 @@
     <section class="card" id="card">
       <div class="status">正在加载诗词库……</div>
     </section>
+
+    <div class="share-bar">
+      <div class="ratio-row">
+        <span class="ratio-label">卡片比例</span>
+        <button class="ratio-opt active" data-ratio="1:1" type="button">1:1</button>
+        <button class="ratio-opt" data-ratio="3:4" type="button">3:4</button>
+        <button class="ratio-opt" data-ratio="9:16" type="button">9:16</button>
+      </div>
+      <button id="shareButton" type="button" class="secondary">分享诗词卡片</button>
+    </div>
 
     <footer class="copyright">版权所有 © Ethan 2026</footer>
   </main>
@@ -586,19 +591,26 @@
 
     let currentPoem = null;
 
-    // 硬性要求：绝不允许换行断行。超宽时等比缩小标题、作者、正文字号，全部强制居中
+    // 按逗号/顿号拆分长句为完整分句（每行都以标点结尾，绝不在分句中间断开）
+    function splitClauseLines(text) {
+      const parts = [];
+      let buf = "";
+      for (const ch of text) {
+        buf += ch;
+        if ("，、".includes(ch)) { parts.push(buf); buf = ""; }
+      }
+      if (buf) parts.push(buf);
+      return parts.length > 1 ? parts : [text];
+    }
+
+    // 排版规则：先缩字号（正文不小于体裁字号），能不换行尽量不换；
+    // 缩到下限仍超长的行，才按逗号/顿号换行，每行保证是完整分句
     function fitCardText() {
       const titleEl = card.querySelector(".title");
       const metaEl = card.querySelector(".meta");
       const contentEl = card.querySelector(".content");
       if (!titleEl || !contentEl) return;
-      // 重置回主题基准字号
-      titleEl.style.fontSize = "";
-      if (metaEl) metaEl.style.fontSize = "";
-      contentEl.style.fontSize = "";
-      const baseT = parseFloat(getComputedStyle(titleEl).fontSize);
-      const baseM = metaEl ? parseFloat(getComputedStyle(metaEl).fontSize) : 16;
-      const baseC = parseFloat(getComputedStyle(contentEl).fontSize);
+      const catEl = card.querySelector(".category");
       const cs = getComputedStyle(card);
       // 预留卡片内装饰框（inset 14px）的安全边距，文字不出框
       const innerW =
@@ -612,13 +624,48 @@
         const els = [titleEl, ...contentEl.querySelectorAll(".verse-line")];
         return els.some((el) => el.scrollWidth > innerW + 2);
       };
-      let scale = 1;
-      while (overflows() && scale > 0.3) {
-        scale -= 0.06;
-        titleEl.style.fontSize = Math.round(baseT * scale) + "px";
-        if (metaEl) metaEl.style.fontSize = Math.round(baseM * scale) + "px";
-        contentEl.style.fontSize = Math.round(baseC * scale) + "px";
-      }
+      const bodyOverflow = () =>
+        [...contentEl.querySelectorAll(".verse-line")].some(
+          (el) => el.scrollWidth > innerW + 2
+        );
+
+      const tryFit = () => {
+        // 重置回主题基准字号
+        titleEl.style.fontSize = "";
+        if (metaEl) metaEl.style.fontSize = "";
+        contentEl.style.fontSize = "";
+        const baseT = parseFloat(getComputedStyle(titleEl).fontSize);
+        const baseM = metaEl ? parseFloat(getComputedStyle(metaEl).fontSize) : 16;
+        const baseC = parseFloat(getComputedStyle(contentEl).fontSize);
+        // 最低字号限制：正文不能小于体裁字号
+        const minC = catEl ? parseFloat(getComputedStyle(catEl).fontSize) : 13;
+        let scale = 1;
+        while (overflows() && scale > 0.3) {
+          scale -= 0.06;
+          titleEl.style.fontSize = Math.round(baseT * scale) + "px";
+          if (metaEl) metaEl.style.fontSize = Math.round(baseM * scale) + "px";
+          contentEl.style.fontSize = Math.max(minC, Math.round(baseC * scale)) + "px";
+          // 正文已到最低字号且仍有超长行：停止缩小，交给分句换行
+          if (!isV && baseC * scale <= minC && bodyOverflow()) break;
+        }
+        return !overflows();
+      };
+
+      if (tryFit()) return;
+      if (isV) return;
+      // 只把超长的行按逗号/顿号拆开，短行保持整句
+      const html = [];
+      contentEl.querySelectorAll(".verse-line").forEach((el) => {
+        if (el.scrollWidth <= innerW + 2) {
+          html.push(el.outerHTML);
+        } else {
+          for (const p of splitClauseLines(el.textContent)) {
+            html.push('<div class="verse-line">' + escapeHtml(p) + "</div>");
+          }
+        }
+      });
+      contentEl.innerHTML = html.join("");
+      tryFit();
     }
 
     let fitTimer = null;
@@ -926,19 +973,20 @@
         const footerText = "诗泉 · 非营利古诗词共享项目";
 
         if (!vertical) {
-          // ---------- 横排：硬性要求——每句一行绝不断行，超宽/超高只等比缩小字号 ----------
+          // ---------- 横排：先缩字号（不低于落款字号），能不换行尽量不换；仍超长才按逗号/顿号分句换行 ----------
           const availW = W - M * 2 - 100;
           const availH = H - M * 2;
-          const measureLines = (size) => {
+          const minSize = Math.round(W * 0.017); // 最低字号：不小于落款/体裁文字
+          const measureLines = (size, list) => {
             ctx.font = size + "px " + FONT;
             let max = 0;
-            for (const verse of verses) {
-              max = Math.max(max, ctx.measureText(verse).width);
+            for (const line of list) {
+              max = Math.max(max, ctx.measureText(line).width);
             }
-            return { lines: verses, max };
+            return { lines: list, max };
           };
-          const layoutFor = (size) => {
-            const mm = measureLines(size);
+          const layoutFor = (size, list) => {
+            const mm = measureLines(size, list);
             const sealFont = Math.round(size * 0.85);
             return {
               lines: mm.lines,
@@ -966,11 +1014,30 @@
             return Math.max(L.max, tw, fw, sw);
           };
 
-          let L = layoutFor(Math.round(W * 0.034));
-          let w0 = widestOf(L);
-          if (w0 > availW) L = layoutFor(Math.floor(L.fontSize * availW / w0));
-          if (blockHeight(L) > availH) {
-            L = layoutFor(Math.max(40, Math.floor(L.fontSize * availH / blockHeight(L))));
+          const fitLayout = (list) => {
+            let L = layoutFor(Math.round(W * 0.034), list);
+            const w0 = widestOf(L);
+            if (w0 > availW) {
+              L = layoutFor(Math.floor((L.fontSize * availW) / w0), list);
+            }
+            if (L.fontSize < minSize) L = layoutFor(minSize, list);
+            if (blockHeight(L) > availH) {
+              L = layoutFor(
+                Math.max(minSize, Math.floor((L.fontSize * availH) / blockHeight(L))),
+                list
+              );
+            }
+            return L;
+          };
+
+          let L = fitLayout(verses);
+          if (L.max > availW) {
+            // 最低字号仍放不下：按逗号/顿号分句换行，每行都是完整分句
+            const clauseLines = [];
+            for (const verse of verses) {
+              for (const p of splitClauseLines(verse)) clauseLines.push(p);
+            }
+            L = fitLayout(clauseLines);
           }
 
           let y = M + Math.max(0, (availH - blockHeight(L)) / 2);

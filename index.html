@@ -4,8 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>诗泉</title>
-  <link rel="icon" type="image/png" href="icon.png">
-  <link rel="apple-touch-icon" href="icon.png">
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="icons/icon-16.png">
+  <link rel="icon" type="image/png" sizes="48x48" href="icons/icon-48.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="shortcut icon" href="icons/icon-32.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <style>
     * { box-sizing: border-box; }
@@ -37,10 +42,10 @@
       --max-width: 900px;
       --page-padding: 48px 20px;
       --card-padding: 42px 28px;
-      --content-font-size: 30px;
+      --content-font-size: 35px;
       --title-font-size: 36px;
-      --meta-font-size: 27px;
-      --category-font-size: 27px;
+      --meta-font-size: 23px;
+      --category-font-size: 20px;
       --h1-font-size: 34px;
     }
     ::selection { background: var(--accent-color); color: var(--button-text); }
@@ -63,20 +68,32 @@
     }
     body::before { top: -140px; right: -140px; width: 380px; height: 380px; }
     body::after { bottom: -160px; left: -160px; width: 420px; height: 420px; opacity: .05; }
+    /* 页面点缀：飞鸟、竹子、山峦（跟随主题色） */
+    .deco { position: fixed; z-index: 0; pointer-events: none; color: var(--accent-color); opacity: .1; }
+    .deco-birds { top: 84px; left: 5vw; width: 130px; animation: birdFloat 7s ease-in-out infinite alternate; }
+    .deco-bamboo { left: max(6px, calc(50% - 620px)); bottom: 0; height: 46vh; opacity: .08; }
+    .deco-mountains { right: 0; bottom: 0; width: min(48vw, 540px); opacity: .07; }
+    @keyframes birdFloat {
+      from { transform: translate(0, 0); }
+      to { transform: translate(22px, -12px); }
+    }
+    @media (max-width: 900px) { .deco-bamboo, .deco-birds { display: none; } }
     .page {
       max-width: var(--max-width);
       margin: 0 auto;
       padding: var(--page-padding);
+      position: relative;
+      z-index: 1;
     }
     h1 {
       text-align: center;
-      font-size: var(--h1-font-size);
       margin: 0 0 8px;
-      font-weight: 700;
-      letter-spacing: 6px;
-      color: var(--seal-color);
-      font-family: var(--font-content);
+      line-height: 0;
     }
+    /* SVG logo：顶部阳刻 / 页脚阴刻 */
+    .site-logo { display: block; margin: 0 auto; height: 52px; width: auto; }
+    .splash-logo { height: 64px; width: auto; opacity: 0; animation: splashIn 1.1s cubic-bezier(.22,.61,.36,1) .1s forwards; }
+    .footer-logo { display: block; margin: 0 auto; height: 44px; width: auto; }
     .subtitle {
       text-align: center;
       color: var(--subtitle-color);
@@ -243,25 +260,7 @@
       font-size: var(--category-font-size);
       color: var(--category-color);
     }
-    /* 诗泉印章：红底圆角方框 + 米白字（稍小一号） */
-    .seal {
-      width: fit-content;
-      margin: 0 auto;
-      padding: 9px 20px;
-      background: var(--seal-color);
-      color: #f7efe3;
-      border-radius: 8px;
-      font-family: var(--font-content);
-      font-size: 18px;
-      font-weight: 700;
-      letter-spacing: 6px;
-      text-indent: 6px;
-      line-height: 1;
-      text-align: center;
-      box-shadow: inset 0 0 0 1px rgba(247, 239, 227, .3);
-      user-select: none;
-    }
-    /* 页脚：印章 → 宣传语 → 版权，全部居中 */
+    /* 页脚：阴刻 logo → 宣传语 → 版权，全部居中 */
     .site-footer { margin: 42px auto 12px; text-align: center; }
     .slogan {
       margin-top: 14px;
@@ -299,15 +298,6 @@
     }
     #splash.hide { opacity: 0; visibility: hidden; }
     .splash-box { text-align: center; }
-    .splash-title {
-      font-size: 58px;
-      font-weight: 600;
-      color: var(--text-color);
-      letter-spacing: 10px;
-      text-indent: 10px;
-      opacity: 0;
-      animation: splashIn 1.1s cubic-bezier(.22,.61,.36,1) .1s forwards;
-    }
     .splash-rule {
       width: 0;
       height: 1px;
@@ -416,16 +406,41 @@
     @media (max-width: 650px) {
       .row { grid-template-columns: 1fr; }
       .theme-panel { right: 8px; left: 8px; width: auto; }
-      .splash-title { font-size: 42px; }
+      .splash-logo { height: 46px; }
+      .deco-mountains { width: 70vw; }
     }
   </style>
 </head>
 <body>
   <div id="progress"></div>
+
+  <!-- 点缀：飞鸟（左上）、竹子（左下）、山峦（右下） -->
+  <svg class="deco deco-birds" viewBox="0 0 130 62" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true">
+    <path d="M6 26 Q16 12 26 24 Q36 12 46 26"/>
+    <path d="M56 42 Q64 31 72 40 Q80 31 88 42"/>
+    <path d="M94 18 Q101 9 108 17 Q115 9 122 18"/>
+  </svg>
+  <svg class="deco deco-bamboo" viewBox="0 0 110 400" fill="currentColor" aria-hidden="true">
+    <rect x="28" y="0" width="11" height="86" rx="5"/>
+    <rect x="28" y="92" width="11" height="96" rx="5"/>
+    <rect x="28" y="194" width="11" height="96" rx="5"/>
+    <rect x="28" y="296" width="11" height="104" rx="5"/>
+    <rect x="68" y="40" width="9" height="80" rx="4"/>
+    <rect x="68" y="126" width="9" height="86" rx="4"/>
+    <rect x="68" y="218" width="9" height="86" rx="4"/>
+    <rect x="68" y="310" width="9" height="90" rx="4"/>
+    <path d="M39 60 C56 46 72 44 84 48 C70 58 52 62 39 60 Z"/>
+    <path d="M39 200 C22 188 10 186 0 190 C12 200 28 204 39 200 Z"/>
+    <path d="M77 140 C92 128 104 126 110 130 C100 140 88 144 77 140 Z"/>
+  </svg>
+  <svg class="deco deco-mountains" viewBox="0 0 560 240" fill="currentColor" aria-hidden="true">
+    <path d="M0 240 L96 116 L168 196 L252 72 L340 190 L424 108 L560 240 Z" opacity=".5"/>
+    <path d="M0 240 L128 156 L224 218 L326 132 L446 214 L560 172 L560 240 Z"/>
+  </svg>
   <!-- 开屏动画：说明非营利初衷（每次会话显示一次，点击可跳过） -->
   <div id="splash">
     <div class="splash-box">
-      <div class="splash-title">诗泉</div>
+      <img class="splash-logo" src="logo-yang.svg" alt="诗泉">
       <div class="splash-rule"></div>
       <div class="splash-motto">掬古人之诗 · 养今时之心</div>
       <div class="splash-note">非营利项目 · 数据源自开源社区 · 仅供学习欣赏</div>
@@ -433,7 +448,7 @@
   </div>
 
   <main class="page">
-    <h1>诗泉</h1>
+    <h1><img class="site-logo" src="logo-yang.svg" alt="诗泉"></h1>
     <div class="subtitle">在线古诗词浏览器</div>
 
     <section class="controls">
@@ -469,7 +484,7 @@
     </section>
 
     <footer class="site-footer">
-      <div class="seal">诗泉</div>
+      <img class="footer-logo" src="logo-yin.svg" alt="诗泉">
       <div class="slogan">诗泉 · 非营利古诗词共享项目</div>
       <div class="copyright">版权所有 © Ethan 2026</div>
     </footer>
@@ -1421,10 +1436,10 @@
         }
       },
       size: {
-        // 中号：标题 36/作者 27/正文 30/体裁 27；小/大各减/加 20%
-        small: { vars: { "--title-font-size": "29px", "--meta-font-size": "22px", "--content-font-size": "24px", "--category-font-size": "22px" } },
-        medium: { vars: { "--title-font-size": "36px", "--meta-font-size": "27px", "--content-font-size": "30px", "--category-font-size": "27px" } },
-        large: { vars: { "--title-font-size": "43px", "--meta-font-size": "32px", "--content-font-size": "36px", "--category-font-size": "32px" } }
+        // 中号：标题 36/作者 23/正文 35/体裁 20；小/大各减/加 20%
+        small: { vars: { "--title-font-size": "29px", "--meta-font-size": "18px", "--content-font-size": "28px", "--category-font-size": "16px" } },
+        medium: { vars: { "--title-font-size": "36px", "--meta-font-size": "23px", "--content-font-size": "35px", "--category-font-size": "20px" } },
+        large: { vars: { "--title-font-size": "43px", "--meta-font-size": "28px", "--content-font-size": "42px", "--category-font-size": "24px" } }
       }
     };
 

@@ -4,9 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>诗泉</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='5' fill='%23a3382f'/%3E%3Ctext x='16' y='23' font-size='19' text-anchor='middle' fill='%23f7efe3' font-family='serif' font-weight='600'%3E%E8%AF%97%3C/text%3E%3C/svg%3E">
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <style>
     * { box-sizing: border-box; }
+    /* 度量兜底字体：消除网络字体加载替换时的布局跳动（size-adjust 对齐占位字体度量） */
+    @font-face { font-family: "SerifFallback"; src: local("Songti SC"), local("STSong"), local("SimSun"), local("宋体"); size-adjust: 100%; ascent-override: 92%; descent-override: 20%; font-display: swap; }
+    @font-face { font-family: "LXGWFallback"; src: local("Songti SC"), local("STSong"), local("SimSun"); size-adjust: 97%; ascent-override: 92%; descent-override: 20%; font-display: swap; }
     :root {
       /* 配色（默认：暖纸） */
       --bg-color: #f4f1e8;
@@ -26,8 +30,8 @@
       --button-text: #fff;
       --seal-color: #a3382f;
       /* 字体（默认：思源宋体，按需从 jsDelivr 加载） */
-      --font-body: "Noto Serif SC", "Songti SC", "STSong", "SimSun", "宋体", serif;
-      --font-content: "Noto Serif SC", "Songti SC", "STSong", "SimSun", serif;
+      --font-body: "Noto Serif SC", "SerifFallback", "Songti SC", "STSong", "SimSun", "宋体", serif;
+      --font-content: "Noto Serif SC", "SerifFallback", "Songti SC", "STSong", "SimSun", serif;
       /* 排版（默认：居中） */
       --max-width: 900px;
       --page-padding: 48px 20px;
@@ -117,29 +121,15 @@
       font-family: inherit;
     }
     button:disabled { opacity: .55; cursor: wait; }
-    /* ====== 按钮悬浮动画（用户可选） ====== */
+    /* ====== 按钮悬浮动画（纯色：提亮 + 微放大 + 阴影） ====== */
     #randomButton, .theme-opt, .theme-toggle {
       transition: transform .25s cubic-bezier(.22,.61,.36,1), background .25s,
         box-shadow .25s, filter .25s, border-color .25s;
     }
-    /* 苹果玻璃效果 */
-    body.hv-glass #randomButton {
-      background: color-mix(in srgb, var(--accent-color) 74%, transparent);
-      border: 1px solid color-mix(in srgb, var(--accent-color) 55%, rgba(255,255,255,.25));
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-    }
-    body.hv-glass #randomButton:hover {
-      transform: translateY(-2px);
-      background: color-mix(in srgb, var(--accent-color) 58%, rgba(255,255,255,.16));
-      backdrop-filter: blur(16px) saturate(1.5);
-      -webkit-backdrop-filter: blur(16px) saturate(1.5);
-      box-shadow: 0 10px 28px color-mix(in srgb, var(--accent-color) 35%, transparent);
-    }
-    /* 标准纯色效果 */
-    body.hv-solid #randomButton:hover {
+    #randomButton:hover {
       filter: brightness(1.12);
-      transform: scale(1.02);
+      transform: translateY(-2px) scale(1.02);
+      box-shadow: 0 8px 22px color-mix(in srgb, var(--accent-color) 30%, transparent);
     }
     .theme-opt:hover, .theme-toggle:hover {
       transform: translateY(-1px);
@@ -287,7 +277,6 @@
       border: 1px solid var(--card-border);
       background: var(--card-bg);
       color: var(--text-color);
-      font-size: 20px;
       cursor: pointer;
       box-shadow: var(--card-shadow);
       z-index: 100;
@@ -295,8 +284,11 @@
       align-items: center;
       justify-content: center;
       padding: 0;
+      line-height: 0;
     }
+    .theme-toggle svg { width: 20px; height: 20px; display: block; }
     .theme-toggle:hover { transform: rotate(30deg); }
+    .theme-toggle:active { transform: rotate(60deg) scale(.95); }
     .theme-panel {
       position: fixed;
       top: 66px;
@@ -308,12 +300,20 @@
       box-shadow: var(--card-shadow);
       padding: 16px;
       z-index: 99;
-      display: none;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-8px) scale(.96);
+      transform-origin: top right;
       backdrop-filter: blur(10px);
       -webkit-backdrop-filter: blur(10px);
-      transition: background 0.3s, border-color 0.3s;
+      transition: opacity .22s ease, transform .22s cubic-bezier(.22,.61,.36,1), visibility 0s linear .22s, background 0.3s, border-color 0.3s;
     }
-    .theme-panel.open { display: block; }
+    .theme-panel.open {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0) scale(1);
+      transition: opacity .22s ease .02s, transform .22s cubic-bezier(.22,.61,.36,1) .02s, visibility 0s, background 0.3s, border-color 0.3s;
+    }
     .theme-section { margin-bottom: 14px; }
     .theme-section:last-child { margin-bottom: 0; }
     .theme-label {
@@ -388,7 +388,7 @@
     </section>
   </main>
 
-  <button id="themeToggle" class="theme-toggle" title="主题设置">⚙</button>
+  <button id="themeToggle" class="theme-toggle" title="主题设置" aria-label="主题设置"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
   <div id="themePanel" class="theme-panel">
     <div class="theme-section">
       <div class="theme-label">配色</div>
@@ -401,6 +401,14 @@
         <button class="theme-opt" data-value="vivid">炽烈</button>
         <button class="theme-opt" data-value="vangogh">星夜</button>
         <button class="theme-opt" data-value="rembrandt">伦勃朗</button>
+        <button class="theme-opt" data-value="rouge">胭脂</button>
+        <button class="theme-opt" data-value="daiqing">黛青</button>
+        <button class="theme-opt" data-value="moss">苔绿</button>
+        <button class="theme-opt" data-value="amber">琥珀</button>
+        <button class="theme-opt" data-value="indigo">靛蓝</button>
+        <button class="theme-opt" data-value="lotus">藕荷</button>
+        <button class="theme-opt" data-value="pine">松烟</button>
+        <button class="theme-opt" data-value="qinghua">青花</button>
       </div>
     </div>
     <div class="theme-section">
@@ -419,13 +427,6 @@
         <button class="theme-opt active" data-value="centered">居中</button>
         <button class="theme-opt" data-value="wide">宽屏</button>
         <button class="theme-opt" data-value="compact">紧凑</button>
-      </div>
-    </div>
-    <div class="theme-section">
-      <div class="theme-label">按钮效果</div>
-      <div class="theme-options" data-group="hover">
-        <button class="theme-opt active" data-value="glass">玻璃</button>
-        <button class="theme-opt" data-value="solid">纯色</button>
       </div>
     </div>
   </div>
@@ -789,6 +790,110 @@
             "--error-color": "#e0705f", "--button-text": "#1a130d",
             "--seal-color": "#8a4a35"
           }
+        },
+        rouge: {
+          vars: {
+            "--bg-color": "#fbe8ec", "--text-color": "#4a2730",
+            "--card-bg": "rgba(255,255,255,.82)", "--card-border": "#f0c8d2",
+            "--card-shadow": "0 8px 26px rgba(176,74,100,.08)",
+            "--accent-color": "#b04a64", "--meta-color": "#8a6a72",
+            "--tip-color": "#8a6a72", "--label-color": "#7a5a62",
+            "--input-bg": "#fff", "--input-border": "#e6b8c2",
+            "--subtitle-color": "#9a7a82", "--category-color": "#aa8a92",
+            "--error-color": "#a3382f", "--button-text": "#fff",
+            "--seal-color": "#9a3848"
+          }
+        },
+        daiqing: {
+          vars: {
+            "--bg-color": "#e8edf2", "--text-color": "#2a3548",
+            "--card-bg": "rgba(255,255,255,.85)", "--card-border": "#c8d4e2",
+            "--card-shadow": "0 8px 26px rgba(42,53,72,.08)",
+            "--accent-color": "#3a5a7a", "--meta-color": "#6a7a8a",
+            "--tip-color": "#6a7a8a", "--label-color": "#5a6a7a",
+            "--input-bg": "#fff", "--input-border": "#b8c4d2",
+            "--subtitle-color": "#7a8a9a", "--category-color": "#8a9aaa",
+            "--error-color": "#b04a3a", "--button-text": "#fff",
+            "--seal-color": "#a85a4e"
+          }
+        },
+        moss: {
+          vars: {
+            "--bg-color": "#e8efe6", "--text-color": "#2a3a28",
+            "--card-bg": "rgba(255,255,255,.85)", "--card-border": "#c8d8c0",
+            "--card-shadow": "0 8px 26px rgba(42,58,40,.08)",
+            "--accent-color": "#4a6a3a", "--meta-color": "#6a8a5a",
+            "--tip-color": "#6a8a5a", "--label-color": "#5a7a4a",
+            "--input-bg": "#fff", "--input-border": "#b8c8a8",
+            "--subtitle-color": "#7a9a6a", "--category-color": "#8aaa7a",
+            "--error-color": "#a3382f", "--button-text": "#fff",
+            "--seal-color": "#9a5a3a"
+          }
+        },
+        amber: {
+          vars: {
+            "--bg-color": "#f6ede0", "--text-color": "#4a3920",
+            "--card-bg": "rgba(255,255,255,.85)", "--card-border": "#e8d4b0",
+            "--card-shadow": "0 8px 26px rgba(176,138,58,.08)",
+            "--accent-color": "#b08a3a", "--meta-color": "#8a7a52",
+            "--tip-color": "#8a7a52", "--label-color": "#7a6a42",
+            "--input-bg": "#fff", "--input-border": "#dcc898",
+            "--subtitle-color": "#9a8a62", "--category-color": "#aa9a72",
+            "--error-color": "#a3382f", "--button-text": "#4a3920",
+            "--seal-color": "#9a4a2a"
+          }
+        },
+        indigo: {
+          vars: {
+            "--bg-color": "#1a1f3a", "--text-color": "#d8dcea",
+            "--card-bg": "rgba(30,36,60,.92)", "--card-border": "#34406a",
+            "--card-shadow": "0 8px 26px rgba(0,0,20,.4)",
+            "--accent-color": "#7a8ae8", "--meta-color": "#a0a8c8",
+            "--tip-color": "#98a0c0", "--label-color": "#a0a8c8",
+            "--input-bg": "#242a48", "--input-border": "#3a4a72",
+            "--subtitle-color": "#8a92b8", "--category-color": "#7a82a8",
+            "--error-color": "#e87060", "--button-text": "#1a1f3a",
+            "--seal-color": "#8a5a4a"
+          }
+        },
+        lotus: {
+          vars: {
+            "--bg-color": "#efe8f0", "--text-color": "#3a2a40",
+            "--card-bg": "rgba(255,255,255,.85)", "--card-border": "#d8c8e0",
+            "--card-shadow": "0 8px 26px rgba(122,90,138,.08)",
+            "--accent-color": "#7a5a8a", "--meta-color": "#7a6a82",
+            "--tip-color": "#7a6a82", "--label-color": "#6a5a72",
+            "--input-bg": "#fff", "--input-border": "#c8b8d0",
+            "--subtitle-color": "#8a7a92", "--category-color": "#9a8aa2",
+            "--error-color": "#a3382f", "--button-text": "#fff",
+            "--seal-color": "#9a5a6a"
+          }
+        },
+        pine: {
+          vars: {
+            "--bg-color": "#d8dcd6", "--text-color": "#2a2e28",
+            "--card-bg": "rgba(255,255,255,.7)", "--card-border": "#bcc4b8",
+            "--card-shadow": "0 8px 26px rgba(42,46,40,.08)",
+            "--accent-color": "#4a5a48", "--meta-color": "#6a7a68",
+            "--tip-color": "#6a7a68", "--label-color": "#5a6a58",
+            "--input-bg": "#e8ece6", "--input-border": "#a8b0a4",
+            "--subtitle-color": "#7a8a78", "--category-color": "#8a9a88",
+            "--error-color": "#a3382f", "--button-text": "#fff",
+            "--seal-color": "#9a4a3a"
+          }
+        },
+        qinghua: {
+          vars: {
+            "--bg-color": "#eef2f6", "--text-color": "#1a2a3a",
+            "--card-bg": "rgba(255,255,255,.85)", "--card-border": "#c4d4e0",
+            "--card-shadow": "0 8px 26px rgba(26,42,58,.08)",
+            "--accent-color": "#2a5a8a", "--meta-color": "#5a6a7a",
+            "--tip-color": "#5a6a7a", "--label-color": "#4a5a6a",
+            "--input-bg": "#fff", "--input-border": "#b4c4d4",
+            "--subtitle-color": "#6a7a8a", "--category-color": "#7a8a9a",
+            "--error-color": "#a3382f", "--button-text": "#fff",
+            "--seal-color": "#a05a3a"
+          }
         }
       },
       font: {
@@ -853,7 +958,7 @@
       }
     };
 
-    let currentTheme = { color: "warm", font: "noto", layout: "centered", hover: "glass" };
+    let currentTheme = { color: "warm", font: "noto", layout: "centered" };
 
     function applyTheme() {
       const root = document.documentElement;
@@ -870,13 +975,10 @@
       if (fontTheme && Array.isArray(fontTheme.webfonts)) {
         fontTheme.webfonts.forEach(ensureFontCss);
       }
-      // 按钮悬浮风格
-      document.body.classList.remove("hv-glass", "hv-solid");
-      document.body.classList.add(currentTheme.hover === "solid" ? "hv-solid" : "hv-glass");
       // 同步面板选中状态
       document.querySelectorAll(".theme-options").forEach((container) => {
         const group = container.dataset.group;
-        const value = group === "hover" ? currentTheme.hover : currentTheme[group];
+        const value = currentTheme[group];
         container.querySelectorAll(".theme-opt").forEach((btn) => {
           btn.classList.toggle("active", btn.dataset.value === value);
         });
@@ -895,7 +997,6 @@
           if (p.color && THEMES.color[p.color]) currentTheme.color = p.color;
           if (p.font && THEMES.font[p.font]) currentTheme.font = p.font;
           if (p.layout && THEMES.layout[p.layout]) currentTheme.layout = p.layout;
-          if (p.hover === "glass" || p.hover === "solid") currentTheme.hover = p.hover;
         }
       } catch (e) {}
     }
@@ -923,12 +1024,8 @@
         splash.classList.add("hide");
         setTimeout(() => splash.remove(), 900);
       };
-      let seen = false;
-      try { seen = sessionStorage.getItem("poetry-splash") === "1"; } catch (e) {}
-      if (seen) { splash.remove(); return; }
-      try { sessionStorage.setItem("poetry-splash", "1"); } catch (e) {}
       splash.addEventListener("click", hide);
-      setTimeout(hide, 2800);
+      setTimeout(hide, 2600);
     })();
 
     // ====== 启动 ======

@@ -178,6 +178,7 @@
       text-align: center;
       position: relative;
       overflow: hidden;
+      scroll-margin-top: 20px;
     }
     /* 点缀：卡片内淡雅水印 */
     .card::before {
@@ -235,7 +236,7 @@
       width: fit-content;
       height: auto;
       margin: 0 auto;
-      line-height: 2.1;
+      line-height: 2;
       white-space: normal;
     }
     body.vertical .verse-line { display: block; margin: 0; white-space: nowrap; }
@@ -244,22 +245,32 @@
       font-size: 13px;
       color: var(--category-color);
     }
-    /* 诗泉印章：红底圆角方框 + 米白字 */
+    /* 诗泉印章：红底圆角方框 + 米白字（稍小一号） */
     .seal {
       width: fit-content;
-      margin: 32px auto 0;
-      padding: 12px 28px;
+      margin: 30px auto 0;
+      padding: 9px 20px;
       background: var(--seal-color);
       color: #f7efe3;
-      border-radius: 10px;
+      border-radius: 8px;
       font-family: var(--font-content);
-      font-size: 24px;
+      font-size: 18px;
       font-weight: 700;
-      letter-spacing: 8px;
-      text-indent: 8px;
+      letter-spacing: 6px;
+      text-indent: 6px;
       line-height: 1;
       text-align: center;
       box-shadow: inset 0 0 0 1px rgba(247, 239, 227, .3);
+      user-select: none;
+    }
+    /* 页脚版权 */
+    .copyright {
+      margin: 42px auto 12px;
+      text-align: center;
+      font-size: 12px;
+      letter-spacing: 2px;
+      color: var(--category-color);
+      opacity: .85;
       user-select: none;
     }
     .status {
@@ -417,7 +428,7 @@
 
   <main class="page">
     <h1>诗泉</h1>
-    <div class="subtitle">本地古诗词浏览器</div>
+    <div class="subtitle">在线古诗词浏览器</div>
 
     <section class="controls">
       <div class="row">
@@ -450,6 +461,8 @@
     <section class="card" id="card">
       <div class="status">正在加载诗词库……</div>
     </section>
+
+    <footer class="copyright">版权所有 © Ethan 2026</footer>
   </main>
 
   <button id="themeToggle" class="theme-toggle" title="主题设置" aria-label="主题设置"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
@@ -587,8 +600,12 @@
       const baseM = metaEl ? parseFloat(getComputedStyle(metaEl).fontSize) : 16;
       const baseC = parseFloat(getComputedStyle(contentEl).fontSize);
       const cs = getComputedStyle(card);
+      // 预留卡片内装饰框（inset 14px）的安全边距，文字不出框
       const innerW =
-        card.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+        card.clientWidth -
+        parseFloat(cs.paddingLeft) -
+        parseFloat(cs.paddingRight) -
+        28;
       const isV = document.body.classList.contains("vertical");
       const overflows = () => {
         if (isV) return contentEl.scrollWidth > innerW + 2;
@@ -707,7 +724,7 @@
       return arr;
     }
 
-    async function loadRandomPoem() {
+    async function loadRandomPoem(userAction) {
       button.disabled = true;
       button.textContent = "正在读取……";
       progressStart();
@@ -748,6 +765,10 @@
           if (matched.length) {
             const poem = matched[Math.floor(Math.random() * matched.length)];
             renderPoem(poem);
+            // 用户搜索/抽取有结果后，自动滑到诗词卡片
+            if (userAction) {
+              card.scrollIntoView({ behavior: "smooth", block: "start" });
+            }
             return;
           }
         }
@@ -918,12 +939,12 @@
           };
           const layoutFor = (size) => {
             const mm = measureLines(size);
-            const sealFont = Math.round(size * 1.05);
+            const sealFont = Math.round(size * 0.85);
             return {
               lines: mm.lines,
               max: mm.max,
               fontSize: size,
-              lineH: Math.round(size * 1.95),
+              lineH: Math.round(size * 1.8),
               titleFont: Math.round(size * 1.5),
               metaFont: Math.round(size * 0.6),
               catFont: Math.round(size * 0.52),
@@ -939,7 +960,10 @@
             const tw = ctx.measureText(title).width;
             ctx.font = L.catFont + "px " + FONT;
             const fw = ctx.measureText(footerText).width;
-            return Math.max(L.max, tw, fw);
+            ctx.font = "700 " + L.sealFont + "px " + FONT;
+            const sw =
+              ctx.measureText("诗泉").width + L.sealFont * 0.35 + L.sealFont * 1.24;
+            return Math.max(L.max, tw, fw, sw);
           };
 
           let L = layoutFor(Math.round(W * 0.034));
@@ -986,26 +1010,33 @@
           ctx.font = L.catFont + "px " + FONT;
           ctx.fillText(footerText, W / 2, y + L.catFont / 2);
         } else {
-          // ---------- 竖排：右侧标题列 → 诗句列 → 左侧作者列，印章在作者列下方 ----------
-          const cols = verses.length + 2;
+          // ---------- 竖排：右标题列 → 诗句列 → 左作者列，印章在作者列下方；字距行距与横排一致，全部元素不出边框 ----------
+          const ADV = 1.8; // 字距/列距系数，与横排行距相同
+          const footerH = Math.round(W * 0.05);
+          const availH = H - M * 2 - footerH;
+          const availW = W - M * 2;
           const maxChars = Math.max(
             title.length, authorMeta.length,
             ...verses.map((x) => x.length), 1
           );
-          const footerH = Math.round(W * 0.05);
-          const availH = H - M * 2 - footerH;
-          const availW = W - M * 2;
+          const vSealFont0 = 0.65; // 印章字号相对字元比例
+          // 高：最长列字符跨度 + 印章方框预留；宽：标题列(1.15 间距)+诗句列+作者列+半字余量
           let charSize = Math.min(
-            Math.floor(availH / ((maxChars + 1) * 1.5)),
-            Math.floor(availW / (cols * 1.8)),
+            Math.floor(availH / (maxChars * ADV + 4.2)),
+            Math.floor(availW / ((verses.length + 1.15) * ADV + 1)),
             Math.round(W * 0.04)
           );
-          charSize = Math.max(charSize, 36);
-          const colGap = Math.round(charSize * 1.8);
-          const totalW = cols * colGap;
-          const startX = W / 2 + totalW / 2 - colGap / 2;
-          const colH = maxChars * charSize * 1.5;
-          const startY = M + (availH - colH) / 2 + charSize * 0.75;
+          charSize = Math.max(charSize, 30);
+          const colGap = Math.round(charSize * ADV);
+          const totalW = colGap * (verses.length + 1.15);
+          const vSealFont = Math.round(charSize * vSealFont0);
+          const vPadX = vSealFont * 0.5;
+          const vPadY = vSealFont * 0.42;
+          const vBoxH = vSealFont * 2 + vSealFont * 0.5 + vPadY * 2;
+          // 垂直居中：首字顶部到印章底部的总高
+          const topPad = charSize * 0.55;
+          const totalH = topPad + (maxChars - 1) * colGap + charSize * 0.85 + vBoxH;
+          const startY = M + Math.max(0, (availH - totalH) / 2) + topPad;
 
           const drawVCol = (cx, text, size, weight, color) => {
             ctx.font = weight + " " + size + "px " + FONT;
@@ -1013,27 +1044,24 @@
             let yy = startY;
             for (const ch of text) {
               ctx.fillText(ch, cx, yy);
-              yy += size * 1.5;
+              yy += colGap;
             }
             return yy;
           };
 
-          let x = startX;
+          let x = W / 2 + totalW / 2;
           drawVCol(x, title, Math.round(charSize * 1.1), "600", textColor);
           x -= Math.round(colGap * 1.15);
           for (const verse of verses) {
             drawVCol(x, verse, charSize, "400", textColor);
             x -= colGap;
           }
-          const yEnd = drawVCol(x, authorMeta, Math.round(charSize * 0.6), "400", metaColor);
-          // 诗泉印章（竖排）：红底圆角方框 + 米白字叠放
-          const vSealFont = Math.round(charSize * 0.8);
+          drawVCol(x, authorMeta, Math.round(charSize * 0.6), "400", metaColor);
+          // 诗泉印章（竖排）：红底圆角方框 + 米白字叠放，紧贴作者列末尾不超出边框
+          const lastAuthorY = startY + ((authorMeta.length || maxChars) - 1) * colGap;
           ctx.font = "700 " + vSealFont + "px " + FONT;
-          const vPadX = vSealFont * 0.5;
-          const vPadY = vSealFont * 0.42;
           const vBoxW = Math.max(ctx.measureText("诗").width, ctx.measureText("泉").width) + vPadX * 2;
-          const vBoxH = vSealFont * 2 + vSealFont * 0.5 + vPadY * 2;
-          const vBoxY = yEnd + charSize * 0.35;
+          const vBoxY = Math.min(lastAuthorY + charSize * 0.85, H - M - footerH - vBoxH);
           ctx.fillStyle = sealColor;
           roundRectPath(ctx, x - vBoxW / 2, vBoxY, vBoxW, vBoxH, vSealFont * 0.28);
           ctx.fill();
@@ -1366,8 +1394,17 @@
     }
 
     // 主题面板开关
-    $("themeToggle").addEventListener("click", () => {
+    $("themeToggle").addEventListener("click", (e) => {
+      e.stopPropagation();
       $("themePanel").classList.toggle("open");
+    });
+
+    // 点击页面空白处关闭面板
+    document.addEventListener("click", (e) => {
+      const panel = $("themePanel");
+      if (!panel.classList.contains("open")) return;
+      if (panel.contains(e.target) || $("themeToggle").contains(e.target)) return;
+      panel.classList.remove("open");
     });
 
     // 主题选项点击（配色/字体/排版/按钮效果通用）

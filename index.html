@@ -10,7 +10,7 @@
     * { box-sizing: border-box; }
     /* 度量兜底字体：消除网络字体加载替换时的布局跳动（size-adjust 对齐占位字体度量） */
     @font-face { font-family: "SerifFallback"; src: local("Songti SC"), local("STSong"), local("SimSun"), local("宋体"); size-adjust: 100%; ascent-override: 92%; descent-override: 20%; font-display: swap; }
-    @font-face { font-family: "LXGWFallback"; src: local("Songti SC"), local("STSong"), local("SimSun"); size-adjust: 97%; ascent-override: 92%; descent-override: 20%; font-display: swap; }
+    @font-face { font-family: "SansFallback"; src: local("PingFang SC"), local("Microsoft YaHei"), local("Heiti SC"), local("SimHei"); size-adjust: 100%; ascent-override: 92%; descent-override: 20%; font-display: swap; }
     :root {
       /* 配色（默认：暖纸） */
       --bg-color: #f4f1e8;
@@ -121,6 +121,34 @@
       font-family: inherit;
     }
     button:disabled { opacity: .55; cursor: wait; }
+    .secondary {
+      background: transparent;
+      color: var(--accent-color);
+      border: 1px solid var(--accent-color);
+      margin-top: 10px;
+    }
+    .secondary:hover { background: var(--accent-color); color: var(--button-text); }
+    /* ====== 卡片比例选择 ====== */
+    .ratio-row { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+    .ratio-label { font-size: 13px; color: var(--label-color); }
+    .ratio-opt {
+      width: auto; padding: 5px 12px; font-size: 13px; border-radius: 8px;
+      border: 1px solid var(--input-border); background: var(--input-bg);
+      color: var(--text-color); cursor: pointer; font-family: inherit; transition: all .2s;
+    }
+    .ratio-opt.active { background: var(--accent-color); color: var(--button-text); border-color: var(--accent-color); }
+    /* 字体加载完成前隐藏正文，避免跳动 */
+    .title, .content { transition: opacity .4s ease; }
+    .title.pending, .content.pending { opacity: 0; }
+    /* ====== 顶部加载进度条 ====== */
+    #progress {
+      position: fixed; top: 0; left: 0; height: 3px; width: 0;
+      background: var(--accent-color); z-index: 1001; opacity: 0;
+      box-shadow: 0 0 8px color-mix(in srgb, var(--accent-color) 55%, transparent);
+      transition: width .35s ease, opacity .3s ease;
+    }
+    #progress.run { opacity: 1; width: 88%; transition: width 1.3s cubic-bezier(.22,.61,.36,1), opacity .2s; }
+    #progress.done { width: 100%; opacity: 0; transition: width .25s ease, opacity .45s ease .15s; }
     /* ====== 按钮悬浮动画（纯色：提亮 + 微放大 + 阴影） ====== */
     #randomButton, .theme-opt, .theme-toggle {
       transition: transform .25s cubic-bezier(.22,.61,.36,1), background .25s,
@@ -161,6 +189,22 @@
       opacity: .045;
       pointer-events: none;
     }
+    /* 点缀：卡片内框装饰 */
+    .card::after {
+      content: "";
+      position: absolute;
+      inset: 14px;
+      border: 1px solid var(--accent-color);
+      border-radius: 8px;
+      pointer-events: none;
+      opacity: .22;
+    }
+    .card-footer {
+      margin-top: 24px;
+      font-size: 12px;
+      letter-spacing: 2px;
+      color: var(--category-color);
+    }
     .title {
       font-size: var(--title-font-size);
       font-weight: 600;
@@ -184,25 +228,24 @@
       font-size: 13px;
       color: var(--category-color);
     }
-    /* 点缀：朱红印章 */
+    /* 点缀：朱红印章（横平竖直） */
     .seal {
       margin: 30px auto 0;
-      width: 46px;
-      height: 46px;
+      width: 86px;
+      height: 40px;
       background: var(--seal-color);
       color: #f7efe3;
-      border-radius: 7px;
-      transform: rotate(3deg);
+      border-radius: 6px;
       display: flex;
       align-items: center;
       justify-content: center;
-      writing-mode: vertical-rl;
-      text-orientation: upright;
-      font-size: 16px;
-      letter-spacing: 3px;
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: 6px;
+      text-indent: 6px;
       line-height: 1;
-      box-shadow: inset 0 0 0 2px rgba(247,239,227,.35), 0 2px 6px rgba(0,0,0,.12);
-      opacity: .9;
+      box-shadow: inset 0 0 0 1px rgba(247,239,227,.35);
+      opacity: .92;
       user-select: none;
     }
     .status {
@@ -269,26 +312,25 @@
     /* ====== 主题切换面板 ====== */
     .theme-toggle {
       position: fixed;
-      top: 16px;
-      right: 16px;
-      width: 42px;
-      height: 42px;
-      border-radius: 50%;
-      border: 1px solid var(--card-border);
-      background: var(--card-bg);
+      top: 18px;
+      right: 18px;
+      width: 26px;
+      height: 26px;
+      background: transparent;
+      border: 0;
       color: var(--text-color);
       cursor: pointer;
-      box-shadow: var(--card-shadow);
       z-index: 100;
       display: flex;
       align-items: center;
       justify-content: center;
       padding: 0;
       line-height: 0;
+      opacity: .7;
     }
-    .theme-toggle svg { width: 20px; height: 20px; display: block; }
-    .theme-toggle:hover { transform: rotate(30deg); }
-    .theme-toggle:active { transform: rotate(60deg) scale(.95); }
+    .theme-toggle svg { width: 26px; height: 26px; display: block; }
+    .theme-toggle:hover { transform: rotate(30deg); opacity: 1; }
+    .theme-toggle:active { transform: rotate(60deg) scale(.92); }
     .theme-panel {
       position: fixed;
       top: 66px;
@@ -346,8 +388,10 @@
       .splash-title { font-size: 42px; }
     }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js" defer></script>
 </head>
 <body>
+  <div id="progress"></div>
   <!-- 开屏动画：说明非营利初衷（每次会话显示一次，点击可跳过） -->
   <div id="splash">
     <div class="splash-box">
@@ -378,6 +422,13 @@
         </div>
       </div>
       <button id="randomButton" type="button">随机显示一首诗</button>
+      <div class="ratio-row">
+        <span class="ratio-label">卡片比例</span>
+        <button class="ratio-opt active" data-ratio="1:1" type="button">1:1</button>
+        <button class="ratio-opt" data-ratio="3:4" type="button">3:4</button>
+        <button class="ratio-opt" data-ratio="9:16" type="button">9:16</button>
+      </div>
+      <button id="shareButton" type="button" class="secondary">分享诗词卡片</button>
       <div class="tip">
         共收录 37 万余首古诗词 · 非营利项目 · 按需加载即时抽取
       </div>
@@ -412,21 +463,19 @@
       </div>
     </div>
     <div class="theme-section">
-      <div class="theme-label">字体</div>
-      <div class="theme-options" data-group="font">
-        <button class="theme-opt active" data-value="noto">思源宋体</button>
-        <button class="theme-opt" data-value="lxgw">霞鹜文楷</button>
-        <button class="theme-opt" data-value="kaiti">楷体</button>
-        <button class="theme-opt" data-value="fangsong">仿宋</button>
-        <button class="theme-opt" data-value="songti">系统宋体</button>
-      </div>
-    </div>
-    <div class="theme-section">
       <div class="theme-label">排版</div>
       <div class="theme-options" data-group="layout">
         <button class="theme-opt active" data-value="centered">居中</button>
         <button class="theme-opt" data-value="wide">宽屏</button>
         <button class="theme-opt" data-value="compact">紧凑</button>
+      </div>
+    </div>
+    <div class="theme-section">
+      <div class="theme-label">字号</div>
+      <div class="theme-options" data-group="size">
+        <button class="theme-opt" data-value="small">小</button>
+        <button class="theme-opt active" data-value="medium">中</button>
+        <button class="theme-opt" data-value="large">大</button>
       </div>
     </div>
   </div>
@@ -454,6 +503,23 @@
     const authorInput = $("author");
     const dynastyInput = $("dynasty");
     const typeInput = $("type");
+    const progressEl = $("progress");
+    function progressStart() {
+      if (!progressEl) return;
+      progressEl.classList.remove("done", "run");
+      progressEl.style.width = "";
+      void progressEl.offsetWidth;
+      progressEl.classList.add("run");
+    }
+    function progressDone() {
+      if (!progressEl) return;
+      progressEl.classList.remove("run");
+      progressEl.classList.add("done");
+      setTimeout(() => {
+        progressEl.classList.remove("done");
+        progressEl.style.width = "0";
+      }, 500);
+    }
 
     function escapeHtml(text) {
       return String(text)
@@ -483,7 +549,24 @@
         '<div class="meta">' + escapeHtml(meta) + "</div>" +
         '<div class="content">' + escapeHtml(content || "未找到正文") + "</div>" +
         (type ? '<div class="category">体裁：' + escapeHtml(type) + "</div>" : "") +
-        '<div class="seal">诗泉</div>';
+        '<div class="seal">诗泉</div>' +
+        '<div class="card-footer">诗泉 · 非营利古诗词共享项目</div>';
+
+      // 字体加载完成前隐藏正文，加载完再淡入，避免字符跳动
+      const pendingEls = card.querySelectorAll(".title, .content");
+      pendingEls.forEach((el) => el.classList.add("pending"));
+      const loadText = (poem.t || "") + (poem.c || "");
+      const fontReady =
+        document.fonts && document.fonts.load
+          ? document.fonts.load('1em "Noto Serif SC"', loadText)
+          : Promise.resolve();
+      Promise.resolve(fontReady)
+        .catch(() => {})
+        .finally(() => {
+          requestAnimationFrame(() => {
+            pendingEls.forEach((el) => el.classList.remove("pending"));
+          });
+        });
     }
 
     function weightedRandom(items) {
@@ -548,6 +631,7 @@
     async function loadRandomPoem() {
       button.disabled = true;
       button.textContent = "正在读取……";
+      progressStart();
 
       const author = authorInput.value.trim();
       const dynasty = dynastyInput.value.trim();
@@ -594,6 +678,7 @@
       } finally {
         button.disabled = false;
         button.textContent = "随机显示一首诗";
+        progressDone();
       }
     }
 
@@ -622,6 +707,7 @@
       } catch (e) {}
 
       showStatus("正在加载诗词库……");
+      progressStart();
       try {
         const res = await fetch(DATA_BASE + "data/index.json");
         if (!res.ok) throw new Error("索引加载失败 (HTTP " + res.status + ")");
@@ -635,10 +721,12 @@
             INDEX_CACHE_KEY, JSON.stringify({ data: INDEX, ts: Date.now() })
           );
         } catch (e) {}
+        progressDone();
       } catch (err) {
         showStatus(
           "诗词库加载失败：" + (err && err.message ? err.message : err), true
         );
+        progressDone();
       }
     }
 
@@ -659,20 +747,89 @@
 
     button.addEventListener("click", loadRandomPoem);
 
-    // ====== 网络字体（jsDelivr，国内可访问，unicode-range 自动分包按需下载） ======
-    const FONT_CSS = {
-      noto: [
-        "https://cdn.jsdelivr.net/npm/@fontsource/noto-serif-sc@5/400.css",
-        "https://cdn.jsdelivr.net/npm/@fontsource/noto-serif-sc@5/600.css"
-      ],
-      lxgw: [
-        "https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1/lxgwwenkai-regular.css",
-        "https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1/lxgwwenkai-bold.css"
-      ]
-    };
+    // ====== 分享：生成诗词卡片图片并保存 ======
+    let shareRatio = "1:1";
+    document.querySelectorAll(".ratio-opt").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        shareRatio = btn.dataset.ratio;
+        document.querySelectorAll(".ratio-opt").forEach((b) =>
+          b.classList.toggle("active", b === btn)
+        );
+      });
+    });
 
-    function ensureFontCss(key) {
-      for (const url of FONT_CSS[key] || []) {
+    const shareButton = $("shareButton");
+    shareButton.addEventListener("click", async () => {
+      if (!card.querySelector(".title")) {
+        showStatus("请先随机抽取一首诗，再分享", true);
+        return;
+      }
+      shareButton.disabled = true;
+      shareButton.textContent = "生成中……";
+      try {
+        if (document.fonts && document.fonts.ready) await document.fonts.ready;
+        if (typeof html2canvas === "undefined") throw new Error("图片库未加载，请稍后重试");
+        const bg = getComputedStyle(document.documentElement)
+          .getPropertyValue("--bg-color").trim() || "#f4f1e8";
+
+        // 1. 渲染卡片本体（保证宽度 ≥ 3000px）
+        const cardW = Math.max(card.clientWidth, 1);
+        const scale = Math.max(2, Math.ceil(3000 / cardW));
+        const cardCanvas = await html2canvas(card, {
+          scale,
+          backgroundColor: bg,
+          useCORS: true,
+          logging: false
+        });
+
+        // 2. 按选定比例合成目标画布（宽固定 3000px）
+        const [rw, rh] = shareRatio.split(":").map(Number);
+        const targetW = 3000;
+        const targetH = Math.round((targetW * rh) / rw);
+        const target = document.createElement("canvas");
+        target.width = targetW;
+        target.height = targetH;
+        const ctx = target.getContext("2d");
+        ctx.fillStyle = bg;
+        ctx.fillRect(0, 0, targetW, targetH);
+
+        // 卡片等比缩放居中（占画布 82%，留白更精致）
+        const maxW = targetW * 0.82;
+        const maxH = targetH * 0.82;
+        const ratio = Math.min(maxW / cardCanvas.width, maxH / cardCanvas.height);
+        const drawW = cardCanvas.width * ratio;
+        const drawH = cardCanvas.height * ratio;
+        ctx.drawImage(
+          cardCanvas,
+          (targetW - drawW) / 2,
+          (targetH - drawH) / 2,
+          drawW,
+          drawH
+        );
+
+        const dataUrl = target.toDataURL("image/png");
+        const a = document.createElement("a");
+        a.href = dataUrl;
+        a.download = "诗泉_" + shareRatio.replace(":", "x") + "_" + Date.now() + ".png";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      } catch (e) {
+        showStatus("生成卡片失败：" + (e && e.message ? e.message : e), true);
+      } finally {
+        shareButton.disabled = false;
+        shareButton.textContent = "分享诗词卡片";
+      }
+    });
+
+    // ====== 网络字体（固定：思源宋体，jsDelivr 国内可访问） ======
+    const FONT_CSS_URLS = [
+      "https://cdn.jsdelivr.net/npm/@fontsource/noto-serif-sc@5/400.css",
+      "https://cdn.jsdelivr.net/npm/@fontsource/noto-serif-sc@5/600.css"
+    ];
+
+    function ensureFonts() {
+      for (const url of FONT_CSS_URLS) {
         if (document.querySelector('link[data-fontcss="' + url + '"]')) continue;
         const link = document.createElement("link");
         link.rel = "stylesheet";
@@ -681,6 +838,7 @@
         document.head.appendChild(link);
       }
     }
+    ensureFonts();
 
     // ====== 主题定义 ======
     const THEME_KEY = "poetry-theme-v1";
@@ -896,43 +1054,6 @@
           }
         }
       },
-      font: {
-        noto: {
-          webfonts: ["noto"],
-          vars: {
-            "--font-body": '"Noto Serif SC", "Songti SC", "STSong", "SimSun", "宋体", serif',
-            "--font-content": '"Noto Serif SC", "Songti SC", "STSong", "SimSun", serif'
-          }
-        },
-        lxgw: {
-          webfonts: ["lxgw", "noto"],
-          vars: {
-            "--font-body": '"LXGW WenKai", "Songti SC", "STSong", serif',
-            "--font-content": '"LXGW WenKai", "Noto Serif SC", serif'
-          }
-        },
-        kaiti: {
-          webfonts: ["lxgw", "noto"],
-          vars: {
-            "--font-body": '"Songti SC", "STSong", "SimSun", serif',
-            "--font-content": '"STKaiti", "KaiTi", "Kaiti SC", "LXGW WenKai", "Noto Serif SC", serif'
-          }
-        },
-        fangsong: {
-          webfonts: ["noto"],
-          vars: {
-            "--font-body": '"Songti SC", "STSong", "SimSun", serif',
-            "--font-content": '"FangSong", "STFangsong", "FangSong_GB2312", "Noto Serif SC", serif'
-          }
-        },
-        songti: {
-          webfonts: [],
-          vars: {
-            "--font-body": '"Songti SC", "STSong", "SimSun", "宋体", serif',
-            "--font-content": '"Songti SC", "STSong", "SimSun", serif'
-          }
-        }
-      },
       layout: {
         centered: {
           vars: {
@@ -955,25 +1076,25 @@
             "--title-font-size": "26px", "--h1-font-size": "30px"
           }
         }
+      },
+      size: {
+        small: { vars: { "--content-font-size": "19px", "--title-font-size": "26px" } },
+        medium: { vars: { "--content-font-size": "23px", "--title-font-size": "30px" } },
+        large: { vars: { "--content-font-size": "27px", "--title-font-size": "34px" } }
       }
     };
 
-    let currentTheme = { color: "warm", font: "noto", layout: "centered" };
+    let currentTheme = { color: "warm", layout: "centered", size: "medium" };
 
     function applyTheme() {
       const root = document.documentElement;
-      for (const group of ["color", "font", "layout"]) {
+      for (const group of ["color", "layout", "size"]) {
         const theme = THEMES[group] && THEMES[group][currentTheme[group]];
         if (theme) {
           for (const [prop, value] of Object.entries(theme.vars)) {
             root.style.setProperty(prop, value);
           }
         }
-      }
-      // 按需加载网络字体 CSS（仅当前字体主题需要的）
-      const fontTheme = THEMES.font[currentTheme.font];
-      if (fontTheme && Array.isArray(fontTheme.webfonts)) {
-        fontTheme.webfonts.forEach(ensureFontCss);
       }
       // 同步面板选中状态
       document.querySelectorAll(".theme-options").forEach((container) => {
@@ -995,8 +1116,8 @@
         if (saved) {
           const p = JSON.parse(saved);
           if (p.color && THEMES.color[p.color]) currentTheme.color = p.color;
-          if (p.font && THEMES.font[p.font]) currentTheme.font = p.font;
           if (p.layout && THEMES.layout[p.layout]) currentTheme.layout = p.layout;
+          if (p.size && THEMES.size[p.size]) currentTheme.size = p.size;
         }
       } catch (e) {}
     }

@@ -42,7 +42,7 @@
       --max-width: 900px;
       --page-padding: 48px 20px;
       --card-padding: 42px 28px;
-      --content-font-size: 35px;
+      --content-font-size: 26px;
       --title-font-size: 36px;
       --meta-font-size: 23px;
       --category-font-size: 20px;
@@ -73,11 +73,14 @@
     .deco-birds { top: 84px; left: 5vw; width: 130px; animation: birdFloat 7s ease-in-out infinite alternate; }
     .deco-bamboo { left: max(6px, calc(50% - 620px)); bottom: 0; height: 46vh; opacity: .08; }
     .deco-mountains { right: 0; bottom: 0; width: min(48vw, 540px); opacity: .07; }
+    .deco-cat { right: max(10px, calc(50% - 640px)); bottom: 26vh; width: 78px; opacity: .12; }
+    .deco-dog { left: max(80px, calc(50% - 540px)); bottom: 4vh; width: 88px; opacity: .12; }
     @keyframes birdFloat {
       from { transform: translate(0, 0); }
       to { transform: translate(22px, -12px); }
     }
     @media (max-width: 900px) { .deco-bamboo, .deco-birds { display: none; } }
+    @media (max-width: 1150px) { .deco-cat, .deco-dog { display: none; } }
     .page {
       max-width: var(--max-width);
       margin: 0 auto;
@@ -349,10 +352,15 @@
       justify-content: center;
       padding: 0;
       line-height: 0;
-      opacity: .7;
+      /* 开屏动画完成后才显示（JS 加 .ready） */
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .5s ease, transform .25s ease;
     }
+    .theme-toggle.ready { opacity: .7; pointer-events: auto; }
+    .theme-toggle.ready:hover { opacity: 1; }
     .theme-toggle svg { width: 26px; height: 26px; display: block; }
-    .theme-toggle:hover { transform: rotate(30deg); opacity: 1; }
+    .theme-toggle.ready:hover { transform: rotate(30deg); opacity: 1; }
     .theme-toggle:active { transform: rotate(60deg) scale(.92); }
     .theme-panel {
       position: absolute;
@@ -439,6 +447,22 @@
     <path d="M0 240 L96 116 L168 196 L252 72 L340 190 L424 108 L560 240 Z" opacity=".5"/>
     <path d="M0 240 L128 156 L224 218 L326 132 L446 214 L560 172 L560 240 Z"/>
   </svg>
+  <!-- 点缀：小猫（右侧）、小狗（左下） -->
+  <svg class="deco deco-cat" viewBox="0 0 100 110" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M32 38 L27 14 L43 26 C46 25 52 25 55 26 L71 14 L66 38"/>
+    <path d="M32 38 C28 44 26 49 27 55 C29 65 39 71 49 71 C59 71 69 65 71 55 C72 49 70 44 66 38"/>
+    <path d="M33 69 C25 78 22 88 25 100 L73 100 C76 88 73 78 65 69"/>
+    <path d="M73 98 C86 96 92 87 89 75"/>
+    <path d="M41 48 L41 50 M57 48 L57 50"/>
+  </svg>
+  <svg class="deco deco-dog" viewBox="0 0 110 110" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M36 24 C30 14 20 14 17 22 C14 30 20 40 28 42"/>
+    <path d="M74 24 C80 14 90 14 93 22 C96 30 90 40 82 42"/>
+    <path d="M28 42 C26 30 38 20 55 20 C72 20 84 30 82 42 C80 54 70 62 55 62 C40 62 30 54 28 42 Z"/>
+    <path d="M55 42 L55 48 M55 48 C51 52 46 52 44 50 M55 48 C59 52 64 52 66 50"/>
+    <path d="M40 60 C32 72 30 86 33 100 L77 100 C80 86 78 72 70 60"/>
+    <path d="M77 96 C90 94 96 84 92 72"/>
+  </svg>
   <!-- 开屏动画：说明非营利初衷（每次会话显示一次，点击可跳过） -->
   <div id="splash">
     <div class="splash-box">
@@ -469,13 +493,13 @@
         </div>
       </div>
       <button id="randomButton" type="button">随机显示一首诗/词</button>
+      <button id="shareButton" type="button" class="secondary">分享诗词卡片</button>
       <div class="ratio-row">
         <span class="ratio-label">卡片比例</span>
         <button class="ratio-opt active" data-ratio="1:1" type="button">1:1</button>
         <button class="ratio-opt" data-ratio="3:4" type="button">3:4</button>
         <button class="ratio-opt" data-ratio="9:16" type="button">9:16</button>
       </div>
-      <button id="shareButton" type="button" class="secondary">分享诗词卡片</button>
       <div class="tip">
         共收录 37 万余首古诗词 · 非营利项目 · 按需加载即时抽取
       </div>
@@ -1009,16 +1033,61 @@
         ctx.font = "600 " + Math.round(W * 0.38) + "px " + FONT;
         ctx.fillText("詩", W * 0.8, H * 0.87);
         ctx.restore();
-
+        
+        // 点缀：竹子（左下）、山峦（右下），低透明度不干扰文字
+        const decoBaseY = H - Math.round(M * 0.45);
+        ctx.save();
+        ctx.fillStyle = accent;
+        // 竹子：四段竹节 + 竹叶
+        ctx.globalAlpha = 0.09;
+        const bX = Math.round(M * 0.6), bW = Math.round(W * 0.0075);
+        const segH = Math.round(Math.min(H * 0.085, W * 0.075));
+        for (let i = 0; i < 4; i++) {
+          const yT = decoBaseY - segH * (i + 1) - Math.round(segH * 0.1) * i;
+          roundRectPath(ctx, bX, yT, bW, segH, bW * 0.45);
+          ctx.fill();
+        }
+        const leafY = decoBaseY - segH * 4.5;
+        ctx.beginPath();
+        ctx.ellipse(bX + bW * 3.4, leafY, bW * 3.6, bW, -0.45, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(bX - bW * 2.2, leafY + bW * 3, bW * 3.2, bW * 0.9, 0.4, 0, Math.PI * 2);
+        ctx.fill();
+        // 山峦：远山（淡）+ 近山（稍深）
+        const mX0 = W * 0.6, mX1 = W - M * 0.45;
+        const mH = Math.min(H * 0.125, W * 0.11);
+        ctx.globalAlpha = 0.05;
+        ctx.beginPath();
+        ctx.moveTo(mX0, decoBaseY);
+        ctx.lineTo(mX0 + (mX1 - mX0) * 0.2, decoBaseY - mH * 0.8);
+        ctx.lineTo(mX0 + (mX1 - mX0) * 0.38, decoBaseY - mH * 0.36);
+        ctx.lineTo(mX0 + (mX1 - mX0) * 0.6, decoBaseY - mH);
+        ctx.lineTo(mX0 + (mX1 - mX0) * 0.8, decoBaseY - mH * 0.4);
+        ctx.lineTo(mX1, decoBaseY - mH * 0.68);
+        ctx.lineTo(mX1, decoBaseY);
+        ctx.closePath();
+        ctx.fill();
+        ctx.globalAlpha = 0.09;
+        ctx.beginPath();
+        ctx.moveTo(mX0 + (mX1 - mX0) * 0.25, decoBaseY);
+        ctx.lineTo(mX0 + (mX1 - mX0) * 0.45, decoBaseY - mH * 0.56);
+        ctx.lineTo(mX0 + (mX1 - mX0) * 0.62, decoBaseY - mH * 0.24);
+        ctx.lineTo(mX0 + (mX1 - mX0) * 0.82, decoBaseY - mH * 0.6);
+        ctx.lineTo(mX1, decoBaseY - mH * 0.32);
+        ctx.lineTo(mX1, decoBaseY);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+        
         const footerText = "诗泉 · 非营利古诗词共享项目";
-        const typeText = currentPoem.y ? "体裁：" + currentPoem.y : "";
-
-        // 阳刻 logo（卡片印章位）；加载失败时退化为红色圆角方框
+        
+        // 阴刻 logo（卡片印章位）；加载失败时退化为红色圆角方框
         const logoImg = await new Promise((resolve) => {
           const img = new Image();
           img.onload = () => resolve(img);
           img.onerror = () => resolve(null);
-          img.src = "logo-yang.svg";
+          img.src = "logo-yin.svg";
         });
         const LOGO_RATIO = 222 / 126;
 
@@ -1051,7 +1120,7 @@
           };
           const blockHeight = (L, list) =>
             L.titleFont + 80 + L.metaFont + 70 + list.length * L.lineH +
-            90 + L.logoH + 90 + (typeText ? L.catFont + 40 : 0) + L.catFont;
+            90 + L.logoH + 90 + L.catFont;
 
           let lines = verses;
           let L = layout();
@@ -1087,7 +1156,7 @@
             y += L.lineH;
           }
           y += 90;
-          // 诗泉阳刻 logo（印章位）
+          // 诗泉阴刻 logo（印章位）
           if (logoImg) {
             ctx.drawImage(logoImg, W / 2 - L.logoW / 2, y, L.logoW, L.logoH);
           } else {
@@ -1098,10 +1167,6 @@
           y += L.logoH + 90;
           ctx.fillStyle = catColor;
           ctx.font = L.catFont + "px " + FONT;
-          if (typeText) {
-            ctx.fillText(typeText, W / 2, y + L.catFont / 2);
-            y += L.catFont + 40;
-          }
           ctx.fillText(footerText, W / 2, y + L.catFont / 2);
         } else {
           // ---------- 竖排：右标题列 → 诗句列 → 左作者列，印章在作者列下方；字距行距与横排一致，全部元素不出边框 ----------
@@ -1120,7 +1185,7 @@
             Math.round(W * 0.04)
           );
           charSize = Math.max(charSize, 30);
-          // 阳刻 logo（横版）放在作者列下方，预留高度按字符单位折算
+          // 阴刻 logo（横版）放在作者列下方，预留高度按字符单位折算
           const vLogoW = Math.round(charSize * 2.6);
           const vLogoH = Math.round(vLogoW / LOGO_RATIO);
           const vBoxH = vLogoH;
@@ -1150,7 +1215,7 @@
             x -= colGap;
           }
           drawVCol(x, authorMeta, Math.round(charSize * 0.6), "400", metaColor);
-          // 诗泉阳刻 logo：横放在作者列下方，不超出边框
+          // 诗泉阴刻 logo：横放在作者列下方，不超出边框
           const lastAuthorY = startY + ((authorMeta.length || maxChars) - 1) * colGap;
           const vBoxY = Math.min(lastAuthorY + charSize * 0.85, H - M - footerH - vLogoH);
           if (logoImg) {
@@ -1416,30 +1481,27 @@
         centered: {
           vars: {
             "--max-width": "900px", "--page-padding": "48px 20px",
-            "--card-padding": "42px 28px", "--content-font-size": "23px",
-            "--title-font-size": "30px", "--h1-font-size": "34px"
+            "--card-padding": "42px 28px"
           }
         },
         wide: {
           vars: {
             "--max-width": "1200px", "--page-padding": "48px 20px",
-            "--card-padding": "42px 28px", "--content-font-size": "24px",
-            "--title-font-size": "32px", "--h1-font-size": "36px"
+            "--card-padding": "42px 28px"
           }
         },
         compact: {
           vars: {
             "--max-width": "700px", "--page-padding": "32px 16px",
-            "--card-padding": "30px 18px", "--content-font-size": "20px",
-            "--title-font-size": "26px", "--h1-font-size": "30px"
+            "--card-padding": "30px 18px"
           }
         }
       },
       size: {
-        // 中号：标题 36/作者 23/正文 35/体裁 20；小/大各减/加 20%
-        small: { vars: { "--title-font-size": "29px", "--meta-font-size": "18px", "--content-font-size": "28px", "--category-font-size": "16px" } },
-        medium: { vars: { "--title-font-size": "36px", "--meta-font-size": "23px", "--content-font-size": "35px", "--category-font-size": "20px" } },
-        large: { vars: { "--title-font-size": "43px", "--meta-font-size": "28px", "--content-font-size": "42px", "--category-font-size": "24px" } }
+        // 中号：标题 36/作者 23/正文 26/体裁 20；小/大各减/加 20%
+        small: { vars: { "--title-font-size": "29px", "--meta-font-size": "18px", "--content-font-size": "21px", "--category-font-size": "16px" } },
+        medium: { vars: { "--title-font-size": "36px", "--meta-font-size": "23px", "--content-font-size": "26px", "--category-font-size": "20px" } },
+        large: { vars: { "--title-font-size": "43px", "--meta-font-size": "28px", "--content-font-size": "31px", "--category-font-size": "24px" } }
       }
     };
 
@@ -1516,6 +1578,9 @@
       if (!splash) return;
       const hide = () => {
         splash.classList.add("hide");
+        // 开屏结束后才显示设置按钮
+        const tg = $("themeToggle");
+        if (tg) tg.classList.add("ready");
         setTimeout(() => splash.remove(), 900);
       };
       splash.addEventListener("click", hide);

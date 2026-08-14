@@ -1546,6 +1546,8 @@
     };
 
     let currentTheme = { color: "warm", layout: "centered", size: "medium", direction: "horizontal" };
+    // 竖排默认紧凑+小字号；切回横排时恢复之前的选择
+    let prevHorzTheme = null;
 
     function applyTheme() {
       const root = document.documentElement;
@@ -1585,6 +1587,11 @@
           if (p.layout && THEMES.layout[p.layout]) currentTheme.layout = p.layout;
           if (p.size && THEMES.size[p.size]) currentTheme.size = p.size;
           if (p.direction === "vertical" || p.direction === "horizontal") currentTheme.direction = p.direction;
+          // 竖排分享图默认紧凑排版 + 小字号
+          if (currentTheme.direction === "vertical") {
+            currentTheme.layout = "compact";
+            currentTheme.size = "small";
+          }
         }
       } catch (e) {}
     }
@@ -1607,7 +1614,20 @@
     document.querySelectorAll(".theme-opt").forEach((btn) => {
       btn.addEventListener("click", () => {
         const group = btn.closest(".theme-options").dataset.group;
-        currentTheme[group] = btn.dataset.value;
+        const value = btn.dataset.value;
+        // 切到竖排：默认紧凑排版 + 小字号（竖版分享图按网页卡片自适应生成）；切回横排恢复原选择
+        if (group === "direction" && value !== currentTheme.direction) {
+          if (value === "vertical") {
+            prevHorzTheme = { layout: currentTheme.layout, size: currentTheme.size };
+            currentTheme.layout = "compact";
+            currentTheme.size = "small";
+          } else if (prevHorzTheme) {
+            currentTheme.layout = prevHorzTheme.layout;
+            currentTheme.size = prevHorzTheme.size;
+            prevHorzTheme = null;
+          }
+        }
+        currentTheme[group] = value;
         applyTheme();
         saveTheme();
       });
